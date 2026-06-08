@@ -11,6 +11,7 @@
 
 import { chatHandler } from './chat.js';
 import { agentsHandler } from './agents.js';
+import { workshopHandler } from './workshop.js';
 
 // 静态资源兜底
 const STATIC_TYPES = {
@@ -53,8 +54,6 @@ export default {
       return handleApi(agentsHandler, request, env);
     }
     if (pathname === '/api/workshop') {
-      // 笔记工坊
-      const { workshopHandler } = await import('./workshop.js');
       return handleApi(workshopHandler, request, env);
     }
     if (pathname === '/api/health') {
