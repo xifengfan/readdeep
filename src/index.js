@@ -1,4 +1,4 @@
-// ================================================
+﻿// ================================================
 // src/index.js
 // P2 读透 · Cloudflare Workers 入口
 // 架构：Workers + Workers Assets（static）
@@ -51,6 +51,11 @@ export default {
     }
     if (pathname === '/api/agents') {
       return handleApi(agentsHandler, request, env);
+    }
+    if (pathname === '/api/workshop') {
+      // 笔记工坊
+      const { workshopHandler } = await import('./workshop.js');
+      return handleApi(workshopHandler, request, env);
     }
     if (pathname === '/api/health') {
       return new Response(JSON.stringify({
