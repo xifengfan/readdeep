@@ -1,4 +1,4 @@
-// ================================================
+﻿// ================================================
 // src/workshop.js
 // P2 读透 · 笔记工坊 Serverless
 // 用途：4 模板生成（note/quote/optimize/share）
@@ -11,7 +11,7 @@
 // ================================================
 
 import { callDeepSeek, DEFAULT_MODEL } from './lib/deepseek.js';
-import { WORKSHOP_PROMPTS } from './lib/workshop-prompts.js';
+// 删 WORKSHOP_PROMPTS import（避免依赖）
 
 const MAX_INPUT = 4000;  // 用户原文最长 4000 字
 

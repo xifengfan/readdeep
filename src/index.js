@@ -56,7 +56,7 @@ export default {
     if (pathname === '/api/workshop') {
       return handleApi(workshopHandler, request, env);
     }
-    if (pathname === '/api/debug') {
+    if (false && pathname === '/api/debug') {
       // 临时调试：返回 import 状态
       const debugInfo = {
         ok: true,
