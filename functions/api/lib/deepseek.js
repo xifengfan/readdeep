@@ -1,12 +1,15 @@
 // ================================================
 // api/lib/deepseek.js
-// D2 by 吕玲绮
+// P2 读透 · Cloudflare Pages Functions
 // 用途：DeepSeek API 客户端封装
-// 支持：deepseek-v4-pro（默认·长文本）、deepseek-v4-flash（短文本·轻量）
+// 默认模型：deepseek-v4-flash（主公 openclaw.json 2026-06-08 验证）
+// 备选模型：deepseek-v4-pro（长文/复杂任务）
+// 兼容：deepseek-chat / deepseek-reasoner（OpenAI 兼容）
 // 特性：超时控制 + 错误归一化 + JSON 解析容错
 // ================================================
 
 const DEEPSEEK_BASE = 'https://api.deepseek.com/v1/chat/completions';
+const DEFAULT_MODEL = 'deepseek-v4-flash';  // P2 主公指定
 const DEFAULT_TIMEOUT_MS = 30000;
 
 /**
@@ -14,20 +17,23 @@ const DEFAULT_TIMEOUT_MS = 30000;
  * @param {object} opts
  * @param {string} opts.apiKey   - DeepSeek API Key（从环境变量 DEEPSEEK_API_KEY 读取）
  * @param {string} opts.prompt   - 用户 prompt（已拼好模板的完整文本）
- * @param {string} [opts.model]  - 模型名，默认 'deepseek-v4-pro'
+ * @param {string} [opts.model]  - 模型名，默认 'deepseek-v4-flash'
  * @param {number} [opts.timeoutMs] - 超时毫秒，默认 30000
  * @param {number} [opts.maxTokens] - 最大 token 数
- * @param {number} [opts.temperature] - 温度，默认 0.8（标题）/ 0.7（笔记）
- * @returns {Promise<{content: string, usage: object, model: string}>}
+ * @param {number} [opts.temperature] - 温度
+ * @param {boolean} [opts.stream] - 是否流式
+ * @returns {Promise<{content: string, usage: object, model: string, raw: object}>}
  */
 async function callDeepSeek(opts) {
   const {
     apiKey,
     prompt,
-    model = 'deepseek-chat',
+    model = DEFAULT_MODEL,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxTokens = 2048,
     temperature = 0.7,
+    stream = false,
+    messages,  // 可选：多轮对话
   } = opts || {};
 
   if (!apiKey) {
@@ -35,11 +41,14 @@ async function callDeepSeek(opts) {
     err.code = 'MISSING_API_KEY';
     throw err;
   }
-  if (!prompt || typeof prompt !== 'string') {
-    const err = new Error('prompt 不能为空');
+  if (!prompt && !messages) {
+    const err = new Error('prompt 或 messages 至少需一个');
     err.code = 'EMPTY_PROMPT';
     throw err;
   }
+
+  // 构造 messages（优先用传入的，否则把 prompt 包成单轮）
+  const finalMessages = messages || [{ role: 'user', content: prompt }];
 
   // 构造 AbortController 用于超时控制
   const controller = new AbortController();
@@ -55,12 +64,10 @@ async function callDeepSeek(opts) {
       },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'user', content: prompt },
-        ],
+        messages: finalMessages,
         max_tokens: maxTokens,
         temperature,
-        stream: false,
+        stream,
       }),
       signal: controller.signal,
     });
@@ -87,6 +94,7 @@ async function callDeepSeek(opts) {
     const err = new Error(`DeepSeek API 返回 ${resp.status}：${detail || resp.statusText}`);
     err.code = 'API_ERROR';
     err.status = resp.status;
+    err.detail = detail;
     throw err;
   }
 
@@ -150,5 +158,6 @@ export {
   callDeepSeek,
   safeParseJson,
   DEEPSEEK_BASE,
+  DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MS,
 };
