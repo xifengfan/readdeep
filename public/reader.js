@@ -3,6 +3,7 @@
 // P2 读透 · 陪读室前端逻辑
 // 用途：4 Agent Tab 切换 + 调 /api/chat + 历史滚动
 // 模型：deepseek-v4-flash（后端默认）
+// v2.0 - 2026-06-08 修复 ID 不匹配 bug（P1 教训 5）
 // ================================================
 
 // pinyin → agent id 映射（兼容旧 reader.html 的 data-agent）
@@ -22,7 +23,8 @@ const AGENT_NAME_MAP = {
 
 let currentAgent = 'lead';
 let chatHistory = [];  // [{role, content}]
-let currentBookId = null;  // 由 book.html 跳转时带过来
+let currentBookId = null;
+let isSending = false;  // 防止双击重复发送
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
@@ -46,9 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // 4. 绑定发送按钮
-  const sendBtn = document.getElementById('send-message');
-  const input = document.getElementById('user-input');
+  // 4. 绑定发送按钮（注意：真实 ID 是 chat-input / chat-send）
+  const sendBtn = document.getElementById('chat-send');
+  const input = document.getElementById('chat-input');
   if (sendBtn && input) {
     sendBtn.addEventListener('click', () => sendMessage());
     input.addEventListener('keydown', e => {
@@ -57,6 +59,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         sendMessage();
       }
     });
+    console.log('[reader] 发送按钮已绑定');
+  } else {
+    console.warn('[reader] 找不到 chat-send / chat-input', { sendBtn: !!sendBtn, input: !!input });
   }
 
   // 5. 绑定清空按钮
@@ -92,7 +97,7 @@ function switchAgent(agent) {
     return;
   }
   currentAgent = agent;
-  chatHistory = [];  // 切换 agent 时清空
+  chatHistory = [];
   const nameEl = document.getElementById('current-agent-name');
   if (nameEl) nameEl.textContent = AGENT_NAME_MAP[agent];
 
@@ -109,12 +114,17 @@ function switchAgent(agent) {
 
 // ========== 发送消息 ==========
 async function sendMessage() {
-  const input = document.getElementById('user-input');
+  if (isSending) return;  // 防止重复
+  const input = document.getElementById('chat-input');
   const stream = document.getElementById('chat-stream');
   if (!input || !stream) return;
 
   const text = input.value.trim();
   if (!text) return;
+
+  isSending = true;
+  const sendBtn = document.getElementById('chat-send');
+  if (sendBtn) sendBtn.disabled = true;
 
   // 1. 渲染用户消息
   chatHistory.push({ role: 'user', content: text });
@@ -134,7 +144,7 @@ async function sendMessage() {
         bookId: currentBookId,
         agent: currentAgent,
         userMessage: text,
-        history: chatHistory.slice(0, -1),  // 排除刚 push 的 userMessage
+        history: chatHistory.slice(0, -1),
       }),
     });
     const data = await r.json();
@@ -155,6 +165,9 @@ async function sendMessage() {
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.remove();
     addSystemMessage(`网络错误：${e.message}`, 'error');
+  } finally {
+    isSending = false;
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
