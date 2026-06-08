@@ -3,6 +3,7 @@
 // P2 读透 · 陪读室前端逻辑
 // 用途：4 Agent Tab 切换 + 调 /api/chat + 历史滚动
 // 模型：deepseek-v4-flash（后端默认）
+// v3.0 - 2026-06-08 15:43 全面修复（P1 教训 5 第 3 次重演）
 // ================================================
 
 // pinyin → agent id 映射（兼容旧 reader.html 的 data-agent）
@@ -21,17 +22,23 @@ const AGENT_NAME_MAP = {
 };
 
 let currentAgent = 'lead';
-let chatHistory = [];  // [{role, content}]
-let currentBookId = null;  // 由 book.html 跳转时带过来
+let chatHistory = [];
+let currentBookId = null;
+let isSending = false;
+
+// ========== 启动日志（验证脚本是否真加载）==========
+console.log('%c[reader.js] 已加载 · v3.0 · 2026-06-08', 'color: #c1272d; font-weight: bold;');
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
-  // 1. 拿 bookId（从 URL hash 或 query）
+  console.log('[reader.js] DOMContentLoaded 触发');
+  
+  // 1. 拿 bookId
   const hash = window.location.hash.slice(1);
   const params = new URLSearchParams(hash);
   currentBookId = params.get('book') || null;
   if (currentBookId) {
-    console.log('[reader] 当前 bookId:', currentBookId);
+    console.log('[reader.js] 当前 bookId:', currentBookId);
   }
 
   // 2. 加载 4 Agent 列表
@@ -46,9 +53,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // 4. 绑定发送按钮
-  const sendBtn = document.getElementById('send-message');
-  const input = document.getElementById('user-input');
+  // 4. 绑定发送按钮（真实 ID：chat-input / chat-send）
+  const sendBtn = document.getElementById('chat-send');
+  const input = document.getElementById('chat-input');
   if (sendBtn && input) {
     sendBtn.addEventListener('click', () => sendMessage());
     input.addEventListener('keydown', e => {
@@ -57,6 +64,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         sendMessage();
       }
     });
+    console.log('%c[reader.js] ✅ 发送按钮已绑定 (chat-send + chat-input)', 'color: green; font-weight: bold;');
+  } else {
+    console.error('[reader.js] ❌ 找不到 chat-send / chat-input', {
+      chatSend: !!sendBtn,
+      chatInput: !!input,
+    });
+    // 提示用户（避免静默失败）
+    addSystemMessage('⚠️ 陪读室初始化失败：找不到输入框。请刷新页面或联系开发者。', 'error');
   }
 
   // 5. 绑定清空按钮
@@ -70,6 +85,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 6. 默认激活第一个 agent
   switchAgent('lead');
+  
+  console.log('[reader.js] 初始化完成');
 });
 
 // ========== 加载 4 Agent 列表 ==========
@@ -78,21 +95,21 @@ async function loadAgentList() {
     const r = await fetch('/api/agents');
     const data = await r.json();
     if (data.ok) {
-      console.log(`[reader] 加载 ${data.count} 个 Agent`, data.agents);
+      console.log(`[reader.js] 加载 ${data.count} 个 Agent`, data.agents);
     }
   } catch (e) {
-    console.warn('[reader] /api/agents 加载失败（后端可能未部署）：', e.message);
+    console.warn('[reader.js] /api/agents 加载失败（后端可能未部署）：', e.message);
   }
 }
 
 // ========== 切换 Agent ==========
 function switchAgent(agent) {
   if (!AGENT_NAME_MAP[agent]) {
-    console.warn('[reader] 未知 agent:', agent);
+    console.warn('[reader.js] 未知 agent:', agent);
     return;
   }
   currentAgent = agent;
-  chatHistory = [];  // 切换 agent 时清空
+  chatHistory = [];
   const nameEl = document.getElementById('current-agent-name');
   if (nameEl) nameEl.textContent = AGENT_NAME_MAP[agent];
 
@@ -109,12 +126,28 @@ function switchAgent(agent) {
 
 // ========== 发送消息 ==========
 async function sendMessage() {
-  const input = document.getElementById('user-input');
+  if (isSending) {
+    console.log('[reader.js] 正在发送中，跳过');
+    return;
+  }
+  const input = document.getElementById('chat-input');
   const stream = document.getElementById('chat-stream');
-  if (!input || !stream) return;
+  if (!input || !stream) {
+    console.error('[reader.js] 找不到 chat-input 或 chat-stream');
+    return;
+  }
 
   const text = input.value.trim();
-  if (!text) return;
+  if (!text) {
+    console.log('[reader.js] 空消息，跳过');
+    return;
+  }
+  
+  console.log('[reader.js] 发送消息:', text.substring(0, 30), 'agent:', currentAgent);
+
+  isSending = true;
+  const sendBtn = document.getElementById('chat-send');
+  if (sendBtn) sendBtn.disabled = true;
 
   // 1. 渲染用户消息
   chatHistory.push({ role: 'user', content: text });
@@ -134,7 +167,7 @@ async function sendMessage() {
         bookId: currentBookId,
         agent: currentAgent,
         userMessage: text,
-        history: chatHistory.slice(0, -1),  // 排除刚 push 的 userMessage
+        history: chatHistory.slice(0, -1),
       }),
     });
     const data = await r.json();
@@ -144,17 +177,22 @@ async function sendMessage() {
     if (loadingEl) loadingEl.remove();
 
     if (data.ok) {
+      console.log('[reader.js] 收到回复', data.elapsedMs + 'ms', data.usage);
       chatHistory.push({ role: 'assistant', content: data.reply });
       renderChat();
     } else {
       const errMsg = `[${data.code || 'ERROR'}] ${data.error || '未知错误'}`;
+      console.error('[reader.js] /api/chat 错误', data);
       addSystemMessage(errMsg, 'error');
-      console.error('[reader] /api/chat 错误', data);
     }
   } catch (e) {
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.remove();
+    console.error('[reader.js] 网络错误', e);
     addSystemMessage(`网络错误：${e.message}`, 'error');
+  } finally {
+    isSending = false;
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
