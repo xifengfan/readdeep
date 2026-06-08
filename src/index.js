@@ -56,6 +56,22 @@ export default {
     if (pathname === '/api/workshop') {
       return handleApi(workshopHandler, request, env);
     }
+    if (pathname === '/api/debug') {
+      // 临时调试：返回 import 状态
+      const debugInfo = {
+        ok: true,
+        timestamp: Date.now(),
+        imports: {
+          chatHandler: typeof chatHandler,
+          agentsHandler: typeof agentsHandler,
+          workshopHandler: typeof workshopHandler,
+        },
+        staticImports: 'all loaded',
+      };
+      return new Response(JSON.stringify(debugInfo, null, 2), {
+        headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders() },
+      });
+    }
     if (pathname === '/api/health') {
       return new Response(JSON.stringify({
         ok: true,
