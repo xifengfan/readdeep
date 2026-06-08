@@ -1,4 +1,4 @@
-// ================================================
+﻿// ================================================
 // reader.js
 // P2 读透 · 陪读室前端逻辑
 // 用途：4 Agent Tab 切换 + 调 /api/chat + 历史滚动
@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (currentBookId) {
     console.log('[reader.js] 当前 bookId:', currentBookId);
   }
+
+  // 1.5 加载书库 + 监听 select 变化
+  await initBookSelection();
 
   // 2. 加载 4 Agent 列表
   await loadAgentList();
@@ -165,6 +168,7 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bookId: currentBookId,
+        bookContext: currentBookContext,
         agent: currentAgent,
         userMessage: text,
         history: chatHistory.slice(0, -1),
@@ -226,4 +230,55 @@ function addSystemMessage(text, type = 'info') {
   div.textContent = text;
   stream.appendChild(div);
   setTimeout(() => div.remove(), 5000);
+}
+
+
+// ========== 加载书库 + 监听 select 变化 ==========
+async function initBookSelection() {
+  try {
+    const r = await fetch('/data/books.json');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const books = await r.json();
+    console.log('[reader.js] 加载 books.json:', books.length, '本');
+
+    const bookSelect = document.getElementById('book-select');
+    const chapterSelect = document.getElementById('chapter-select');
+    if (!bookSelect) {
+      console.warn('[reader.js] 找不到 #book-select');
+      return;
+    }
+
+    books.forEach(book => {
+      const opt = document.createElement('option');
+      opt.value = book.id;
+      opt.textContent = book.title;
+      opt.dataset.title = book.title;
+      opt.dataset.author = book.author || '佚名';
+      opt.dataset.summary = book.summary || '';
+      bookSelect.appendChild(opt);
+    });
+
+    bookSelect.addEventListener('change', () => {
+      const selected = bookSelect.options[bookSelect.selectedIndex];
+      if (!selected || !selected.value) {
+        currentBookContext = null;
+        currentBookId = null;
+        return;
+      }
+      currentBookId = selected.value;
+      currentBookContext = {
+        title: selected.dataset.title || selected.textContent,
+        author: selected.dataset.author || '佚名',
+        summary: selected.dataset.summary || '',
+      };
+      console.log('[reader.js] 选了书:', currentBookContext);
+    });
+
+    if (books.length > 0) {
+      bookSelect.value = books[0].id;
+      bookSelect.dispatchEvent(new Event('change'));
+    }
+  } catch (e) {
+    console.error('[reader.js] 加载 books.json 失败:', e);
+  }
 }
