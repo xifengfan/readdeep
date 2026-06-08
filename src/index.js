@@ -67,8 +67,8 @@ export default {
       });
     }
 
-    // 静态资源：用 Workers Assets (env.ASSETS)
-    if (env.ASSETS) {
+    // 静态资源：用 Workers Assets (env.ASSETS) · 但 /api/ 路径必须走 handleApi
+    if (env.ASSETS && !pathname.startsWith('/api/')) {
       try {
         // 尝试原路径
         const asset = await env.ASSETS.fetch(request);
