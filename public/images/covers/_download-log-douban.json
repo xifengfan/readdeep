@@ -1,0 +1,287 @@
+[
+  {
+    "id": "pd-001",
+    "status": "no-og",
+    "title": "论语"
+  },
+  {
+    "id": "pd-002",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/cuphead/book-static/pics/book-default-lpic.gif",
+    "title": "道德经"
+  },
+  {
+    "id": "pd-003",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s1046125.jpg",
+    "title": "庄子"
+  },
+  {
+    "id": "pd-004",
+    "status": "no-og",
+    "title": "孟子"
+  },
+  {
+    "id": "pd-005",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1069562.jpg",
+    "title": "大学中庸"
+  },
+  {
+    "id": "pd-006",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1069562.jpg",
+    "title": "中庸"
+  },
+  {
+    "id": "pd-007",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s24412877.jpg",
+    "title": "诗经"
+  },
+  {
+    "id": "pd-008",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s24992944.jpg",
+    "title": "楚辞"
+  },
+  {
+    "id": "pd-009",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1276382.jpg",
+    "title": "史记"
+  },
+  {
+    "id": "pd-010",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1008878.jpg",
+    "title": "资治通鉴"
+  },
+  {
+    "id": "pd-011",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s29554956.jpg",
+    "title": "孙子兵法"
+  },
+  {
+    "id": "pd-012",
+    "status": "ok",
+    "cover": "https://img2.doubanio.com/view/subject/l/public/s1403931.jpg",
+    "title": "三十六计"
+  },
+  {
+    "id": "pd-013",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1070959.jpg",
+    "title": "三国演义"
+  },
+  {
+    "id": "pd-014",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s1005825.jpg",
+    "title": "水浒传"
+  },
+  {
+    "id": "pd-015",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1101893.jpg",
+    "title": "西游记"
+  },
+  {
+    "id": "pd-016",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1251673.jpg",
+    "title": "红楼梦"
+  },
+  {
+    "id": "pd-017",
+    "status": "dl-fail",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1074798.jpg",
+    "title": "聊斋志异"
+  },
+  {
+    "id": "pd-018",
+    "status": "no-og",
+    "title": "世说新语"
+  },
+  {
+    "id": "pd-019",
+    "status": "ok",
+    "cover": "https://img2.doubanio.com/view/subject/l/public/s10264901.jpg",
+    "title": "古文观止"
+  },
+  {
+    "id": "pd-020",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s1009196.jpg",
+    "title": "唐诗三百首"
+  },
+  {
+    "id": "pd-021",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s2293749.jpg",
+    "title": "宋词三百首"
+  },
+  {
+    "id": "pd-022",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s2636513.jpg",
+    "title": "了凡四训"
+  },
+  {
+    "id": "pd-023",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s24986109.jpg",
+    "title": "传习录"
+  },
+  {
+    "id": "pd-024",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1046608.jpg",
+    "title": "菜根谭"
+  },
+  {
+    "id": "pd-025",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1209688.jpg",
+    "title": "小窗幽记"
+  },
+  {
+    "id": "pd-026",
+    "status": "ok",
+    "cover": "https://img2.doubanio.com/view/subject/l/public/s8928911.jpg",
+    "title": "围炉夜话"
+  },
+  {
+    "id": "pd-027",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1367132.jpg",
+    "title": "增广贤文"
+  },
+  {
+    "id": "pd-028",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s5693664.jpg",
+    "title": "千字文"
+  },
+  {
+    "id": "pd-029",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1261149.jpg",
+    "title": "三字经"
+  },
+  {
+    "id": "pd-030",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s25003692.jpg",
+    "title": "百家姓"
+  },
+  {
+    "id": "lord-001",
+    "status": "skip",
+    "note": "自创 - 无图"
+  },
+  {
+    "id": "lord-002",
+    "status": "skip",
+    "note": "自创 - 无图"
+  },
+  {
+    "id": "lord-003",
+    "status": "no-og",
+    "title": "吴恩达 AI 课程"
+  },
+  {
+    "id": "lord-004",
+    "status": "skip",
+    "note": "自创 - 无图"
+  },
+  {
+    "id": "lord-005",
+    "status": "skip",
+    "note": "自创 - 无图"
+  },
+  {
+    "id": "lord-006",
+    "status": "skip",
+    "note": "自创 - 无图"
+  },
+  {
+    "id": "lord-007",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s33913283.jpg",
+    "title": "纳瓦尔宝典"
+  },
+  {
+    "id": "lord-008",
+    "status": "no-og",
+    "title": "论语精读"
+  },
+  {
+    "id": "lord-009",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s29554956.jpg",
+    "title": "孙子兵法商业"
+  },
+  {
+    "id": "lord-010",
+    "status": "ok",
+    "cover": "https://img9.doubanio.com/view/subject/l/public/s1191145.jpg",
+    "title": "非暴力沟通"
+  },
+  {
+    "id": "lord-011",
+    "status": "no-og",
+    "title": "原则"
+  },
+  {
+    "id": "lord-012",
+    "status": "no-og",
+    "title": "穷查理宝典"
+  },
+  {
+    "id": "lord-013",
+    "status": "no-og",
+    "title": "人类简史"
+  },
+  {
+    "id": "lord-014",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/view/subject/l/public/s1922720.jpg",
+    "title": "如何阅读一本书"
+  },
+  {
+    "id": "lord-015",
+    "status": "ok",
+    "cover": "https://img2.doubanio.com/view/subject/l/public/s28117901.jpg",
+    "title": "思考，快与慢"
+  },
+  {
+    "id": "lord-016",
+    "status": "ok",
+    "cover": "https://img1.doubanio.com/cuphead/book-static/pics/book-default-lpic.gif",
+    "title": "道德经精读"
+  },
+  {
+    "id": "lord-017",
+    "status": "no-og",
+    "title": "心流"
+  },
+  {
+    "id": "lord-018",
+    "status": "no-og",
+    "title": "深度工作"
+  },
+  {
+    "id": "lord-019",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s23848062.jpg",
+    "title": "学会提问"
+  },
+  {
+    "id": "lord-020",
+    "status": "ok",
+    "cover": "https://img3.doubanio.com/view/subject/l/public/s1298443.jpg",
+    "title": "卓有成效的管理者"
+  }
+]

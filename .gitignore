@@ -1,27 +1,22 @@
-# Secrets
-/functions/api/.env
-/functions/api/lib/.env
+# Secrets (主公 5 条金句)
 .env
 .env.local
+secrets/
+*.token
+*.github_token*
 
 # Node
 node_modules/
 npm-debug.log*
 
-# OS
+# OS / Editor
 .DS_Store
 Thumbs.db
-
-# Editor
 .vscode/
 .idea/
 
-# Cache
-.cache/
-dist/
-
 # P2 internal
-/00-今日状态-*.md
-/00-明日待办-*.md
-/.preview-*
-/_测试中/
+00-今日状态-*.md
+00-明日待办-*.md
+.preview-*
+_测试中/
