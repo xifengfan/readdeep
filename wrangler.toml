@@ -2,7 +2,7 @@ name = "readdeep"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 
-# Workers Assets：静态资源配置
+# Workers Assets (static resources)
 [assets]
 directory = "./public"
 binding = "ASSETS"
@@ -11,7 +11,7 @@ binding = "ASSETS"
 AGENTS_VERSION = "v2.2"
 P2_PHASE = "D2-0-1-dogfooding"
 
-# Secrets 会在 Dashboard 配（DEEPSEEK_API_KEY）
+# Secrets are set in CF Dashboard (DEEPSEEK_API_KEY)
 
 [observability]
 enabled = true
