@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>书库 · 读透（ReadDeep）</title>
+  <meta name="description" content="30 本公版书 + 20 本主公已读笔记 · 选一本开始 AI 陪读。" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: {
+          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d4', 100: '#f5f5f5' },
+          paper:  { 50: '#fafaf7', 100: '#f5e6d3', 200: '#e8d5b7' },
+          accent: { 500: '#c1272d', 600: '#a11f25' },
+        },
+        fontFamily: { sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+</head>
+<body class="bg-paper-50 text-ink-900 font-sans antialiased paper">
+
+  <header class="sticky top-0 z-40 bg-paper-50/90 backdrop-blur border-b border-paper-200">
+    <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-md bg-ink-900 text-paper-100 grid place-items-center font-bold">读</span>
+        <span class="font-semibold">读透 · ReadDeep</span>
+      </a>
+      <ul class="hidden md:flex items-center gap-6 text-sm text-ink-700">
+        <li><a href="library.html"  class="text-accent-500 font-medium">书库</a></li>
+        <li><a href="reader.html"   class="hover:text-accent-500">陪读室</a></li>
+        <li><a href="workshop.html" class="hover:text-accent-500">笔记工坊</a></li>
+      </ul>
+      <a href="reader.html" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md bg-ink-900 text-paper-100 hover:bg-ink-700">陪读室</a>
+    </nav>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-12">
+
+    <!-- ========== 头部：筛选 ========== -->
+    <div class="mb-10">
+      <h1 class="text-3xl md:text-4xl font-bold mb-2">书库</h1>
+      <p class="text-ink-500 mb-6">30 本公版书 + 20 本主公已读笔记 · 选一本开始陪读</p>
+
+      <!-- 筛选器 -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-sm text-ink-700 mr-2">筛选：</span>
+        <button class="filter-btn px-4 py-1.5 text-sm rounded-md border border-ink-900 bg-ink-900 text-paper-100" data-filter="all">全部</button>
+        <button class="filter-btn px-4 py-1.5 text-sm rounded-md border border-ink-300 text-ink-700 hover:border-ink-900" data-filter="public_domain">公版书（30）</button>
+        <button class="filter-btn px-4 py-1.5 text-sm rounded-md border border-ink-300 text-ink-700 hover:border-ink-900" data-filter="lord_read">主公已读（20）</button>
+      </div>
+
+      <!-- 搜索框 -->
+      <div class="flex items-center gap-2 max-w-md">
+        <input id="search-input" type="search" placeholder="搜索书名 / 作者 / 分类…"
+          class="flex-1 px-3 py-2 text-sm rounded-md border border-ink-300 focus:border-ink-900 focus:ring-1 focus:ring-ink-900 outline-none" />
+      </div>
+
+      <p id="result-count" class="text-xs text-ink-500 mt-3">— 加载中…</p>
+    </div>
+
+    <!-- ========== 书籍网格 ========== -->
+    <div id="books-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <!-- JS 动态注入 -->
+    </div>
+
+  </main>
+
+  <footer class="border-t border-paper-200 py-8 text-center text-xs text-ink-500">
+    <p>© 2026 读透（ReadDeep）</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      App.init();
+      App.track('page_view', { page: 'library' });
+
+      const grid = document.getElementById('books-grid');
+      const countEl = document.getElementById('result-count');
+      const searchInput = document.getElementById('search-input');
+      const filterBtns = document.querySelectorAll('.filter-btn');
+
+      let allBooks = [];
+      let currentFilter = 'all';
+      let currentSearch = '';
+
+      // 1. 加载数据
+      try {
+        const resp = await fetch('data/books.json');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const json = await resp.json();
+        allBooks = json.books || [];
+        countEl.textContent = `共 ${allBooks.length} 本`;
+      } catch (e) {
+        console.error('[library] 加载失败', e);
+        grid.innerHTML = '<div class="col-span-full text-center text-ink-500 py-12">书库加载失败，请刷新重试</div>';
+        countEl.textContent = '加载失败';
+        return;
+      }
+
+      // 2. 渲染
+      function render() {
+        let list = allBooks;
+        if (currentFilter !== 'all') {
+          list = list.filter(b => b.source === currentFilter);
+        }
+        if (currentSearch) {
+          const q = currentSearch.toLowerCase();
+          list = list.filter(b =>
+            (b.title || '').toLowerCase().includes(q) ||
+            (b.author || '').toLowerCase().includes(q) ||
+            (b.category || '').toLowerCase().includes(q)
+          );
+        }
+
+        countEl.textContent = `共 ${list.length} 本${currentFilter !== 'all' ? `（${currentFilter === 'public_domain' ? '公版' : '主公已读'}）` : ''}${currentSearch ? ` · 搜索"${currentSearch}"` : ''}`;
+
+        if (list.length === 0) {
+          grid.innerHTML = '<div class="col-span-full text-center text-ink-500 py-12">没有匹配的书</div>';
+          return;
+        }
+
+        grid.innerHTML = list.map(b => {
+          const isLord = b.source === 'lord_read';
+          return `<a href="book.html?id=${b.id}" class="book-card" data-id="${b.id}">
+            <div class="cover">${b.cover ? `<img src="${b.cover}" alt="${b.title}" loading="lazy" onerror="this.parentElement.textContent='📚';this.remove();">` : '📚'}</div>
+            <span class="badge ${isLord ? 'lord' : ''}">${b.source === 'public_domain' ? '公版' : '主公已读'}</span>
+            <h3 class="text-sm font-semibold line-clamp-2 mt-1">${escapeHtml(b.title)}</h3>
+            <p class="text-xs text-ink-500 line-clamp-1">${escapeHtml(b.author || '')} · ${escapeHtml(b.category || '')}</p>
+            <p class="text-xs text-ink-700 line-clamp-2 mt-1">${escapeHtml(b.summary || '')}</p>
+          </a>`;
+        }).join('');
+
+        // 埋点：选书
+        grid.querySelectorAll('.book-card').forEach(el => {
+          el.addEventListener('click', () => {
+            App.track('book_select', { bookId: el.dataset.id, source: 'library_grid' });
+          });
+        });
+      }
+
+      function escapeHtml(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // 3. 事件
+      filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          filterBtns.forEach(b => {
+            b.classList.remove('bg-ink-900', 'text-paper-100', 'border-ink-900');
+            b.classList.add('border-ink-300', 'text-ink-700');
+          });
+          btn.classList.add('bg-ink-900', 'text-paper-100', 'border-ink-900');
+          btn.classList.remove('border-ink-300', 'text-ink-700');
+          currentFilter = btn.dataset.filter;
+          App.track('library_filter', { filter: currentFilter });
+          render();
+        });
+      });
+
+      let searchTimer;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          currentSearch = e.target.value.trim();
+          render();
+        }, 200);
+      });
+
+      render();
+    });
+  </script>
+</body>
+</html>

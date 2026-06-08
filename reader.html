@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>陪读室 · 读透（ReadDeep）</title>
+  <meta name="description" content="选书 → 选章节 → 4 个 AI 角色陪读。" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: {
+          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d4', 100: '#f5f5f5' },
+          paper:  { 50: '#fafaf7', 100: '#f5e6d3', 200: '#e8d5b7' },
+          accent: { 500: '#c1272d', 600: '#a11f25' },
+        },
+        fontFamily: { sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+</head>
+<body class="bg-paper-50 text-ink-900 font-sans antialiased paper">
+
+  <header class="sticky top-0 z-40 bg-paper-50/90 backdrop-blur border-b border-paper-200">
+    <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-md bg-ink-900 text-paper-100 grid place-items-center font-bold">读</span>
+        <span class="font-semibold">读透 · ReadDeep</span>
+      </a>
+      <ul class="hidden md:flex items-center gap-6 text-sm text-ink-700">
+        <li><a href="library.html"  class="hover:text-accent-500">书库</a></li>
+        <li><a href="reader.html"   class="text-accent-500 font-medium">陪读室</a></li>
+        <li><a href="workshop.html" class="hover:text-accent-500">笔记工坊</a></li>
+      </ul>
+      <a href="workshop.html" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md bg-accent-500 text-paper-50 hover:bg-accent-600">生成笔记</a>
+    </nav>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+
+    <!-- ========== 顶部：当前书 / 章节选择 ========== -->
+    <section class="mb-6 p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50">
+      <div class="flex flex-col md:flex-row md:items-center gap-4">
+        <!-- 当前书 -->
+        <div class="flex-1">
+          <p class="text-xs text-ink-500 mb-1">当前在读</p>
+          <h1 id="current-book-title" class="text-lg md:text-xl font-semibold">加载中…</h1>
+          <p id="current-book-meta" class="text-xs text-ink-500 mt-1"></p>
+        </div>
+        <!-- 选书 / 选章 -->
+        <div class="flex items-center gap-2">
+          <select id="book-select" class="px-3 py-2 text-sm rounded-md border border-ink-300 bg-paper-50 focus:border-ink-900 outline-none">
+            <option value="">— 选书 —</option>
+          </select>
+          <select id="chapter-select" class="px-3 py-2 text-sm rounded-md border border-ink-300 bg-paper-50 focus:border-ink-900 outline-none">
+            <option value="">— 选章 —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="mt-4">
+        <div class="flex items-center justify-between text-xs text-ink-500 mb-1">
+          <span>阅读进度</span>
+          <span id="progress-text">0 / 0</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 4 Agent Tab ========== -->
+    <section class="mb-6">
+      <div class="flex items-center gap-3 mb-4">
+        <h2 class="text-lg font-semibold">4 Agent 陪读</h2>
+        <span class="text-xs text-ink-500">（D1 占位 · D5 接 DeepSeek）</span>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button class="agent-tab agent-avatar active" data-agent="lingdu_ren">
+          <span class="emoji">📖</span>
+          <span class="name">领读人</span>
+        </button>
+        <button class="agent-tab agent-avatar" data-agent="sugeladuo">
+          <span class="emoji">🤔</span>
+          <span class="name">苏格拉底</span>
+        </button>
+        <button class="agent-tab agent-avatar" data-agent="huashi">
+          <span class="emoji">🎨</span>
+          <span class="name">画师</span>
+        </button>
+        <button class="agent-tab agent-avatar" data-agent="jinjubushou">
+          <span class="emoji">✍️</span>
+          <span class="name">金句捕手</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ========== 对话区 ========== -->
+    <section class="mb-6 p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-sm text-ink-700">
+          当前对话：<span id="current-agent-name" class="font-semibold text-ink-900">领读人</span>
+        </p>
+        <button id="clear-chat" class="text-xs text-ink-500 hover:text-accent-500">清空对话</button>
+      </div>
+
+      <!-- 消息流 -->
+      <div id="chat-stream" class="space-y-3 mb-4 max-h-96 overflow-y-auto">
+        <div class="chat-bubble agent">
+          你好！我是 <b>领读人</b>，这一章我先帮你梳理脉络。选好书和章节后，把你的疑问或想讨论的内容发给我。
+        </div>
+      </div>
+
+      <!-- 输入区 -->
+      <div class="flex gap-2">
+        <textarea id="chat-input" rows="2" placeholder="输入你的问题 / 想法 / 想讨论的段落…"
+          class="flex-1 px-3 py-2 text-sm rounded-md border border-ink-300 focus:border-ink-900 focus:ring-1 focus:ring-ink-900 outline-none resize-none"></textarea>
+        <button id="chat-send" class="px-4 py-2 text-sm rounded-md bg-ink-900 text-paper-100 hover:bg-ink-700 disabled:opacity-50">发送</button>
+      </div>
+    </section>
+
+    <!-- ========== 思考题 ========== -->
+    <section class="mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">本章思考题</h2>
+        <span class="text-xs text-ink-500">3-5 道 · 答完生成笔记</span>
+      </div>
+      <div id="question-list">
+        <div class="question-card">
+          <div class="flex items-start mb-2">
+            <span class="q-num">1</span>
+            <p class="text-sm text-ink-900 flex-1">这一章的核心主张是什么？你能用 1 句话概括吗？</p>
+          </div>
+          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
+        </div>
+        <div class="question-card">
+          <div class="flex items-start mb-2">
+            <span class="q-num">2</span>
+            <p class="text-sm text-ink-900 flex-1">作者为什么这样论证？如果是你，会怎么写？</p>
+          </div>
+          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
+        </div>
+        <div class="question-card">
+          <div class="flex items-start mb-2">
+            <span class="q-num">3</span>
+            <p class="text-sm text-ink-900 flex-1">这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？</p>
+          </div>
+          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CTA：去笔记工坊 ========== -->
+    <section class="text-center py-8">
+      <button id="go-workshop" class="px-8 py-3 rounded-md bg-accent-500 text-paper-50 font-medium hover:bg-accent-600">
+        生成笔记 →
+      </button>
+      <p class="text-xs text-ink-500 mt-3">保存当前进度，跳到笔记工坊选模板</p>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-paper-200 py-8 text-center text-xs text-ink-500">
+    <p>© 2026 读透（ReadDeep）</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      App.init();
+      App.track('page_view', { page: 'reader' });
+
+      // 状态
+      let currentBook = null;
+      let currentChapter = 0;
+      let currentAgent = 'lingdu_ren';
+      const chatHistory = []; // [{role:'user'|'agent', text:'', agent:''}]
+
+      const bookSelectEl = document.getElementById('book-select');
+      const chapterSelectEl = document.getElementById('chapter-select');
+      const bookTitleEl = document.getElementById('current-book-title');
+      const bookMetaEl = document.getElementById('current-book-meta');
+      const progressFillEl = document.getElementById('progress-fill');
+      const progressTextEl = document.getElementById('progress-text');
+      const chatStreamEl = document.getElementById('chat-stream');
+      const chatInputEl = document.getElementById('chat-input');
+      const chatSendBtn = document.getElementById('chat-send');
+      const currentAgentNameEl = document.getElementById('current-agent-name');
+      const clearChatBtn = document.getElementById('clear-chat');
+      const goWorkshopBtn = document.getElementById('go-workshop');
+
+      // 1. 加载书库
+      let allBooks = [];
+      try {
+        const resp = await fetch('data/books.json');
+        const json = await resp.json();
+        allBooks = json.books || [];
+      } catch (e) {
+        console.error('[reader] 加载书库失败', e);
+        bookTitleEl.textContent = '书库加载失败';
+        return;
+      }
+
+      // 2. 填充下拉
+      allBooks.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `${b.cover || '📚'} ${b.title}`;
+        bookSelectEl.appendChild(opt);
+      });
+
+      // 3. 处理 ?id=... 入参
+      const urlBookId = App.getQueryParam('id');
+      if (urlBookId && allBooks.find(b => b.id === urlBookId)) {
+        bookSelectEl.value = urlBookId;
+        loadBook(urlBookId);
+        App.track('chapter_read', { bookId: urlBookId, chapter: 0, source: 'deep_link' });
+      }
+
+      // 4. 事件
+      bookSelectEl.addEventListener('change', (e) => {
+        if (e.target.value) {
+          loadBook(e.target.value);
+          App.track('book_select', { bookId: e.target.value, source: 'reader_picker' });
+        }
+      });
+
+      chapterSelectEl.addEventListener('change', (e) => {
+        currentChapter = parseInt(e.target.value, 10) || 0;
+        updateProgress();
+        App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
+      });
+
+      // 5. 加载单本书
+      function loadBook(bookId) {
+        currentBook = allBooks.find(b => b.id === bookId);
+        if (!currentBook) return;
+        bookTitleEl.textContent = currentBook.title;
+        bookMetaEl.textContent = `${currentBook.author || ''} · ${currentBook.category || ''} · 共 ${currentBook.chapters || 1} 章`;
+        // 章节下拉
+        const totalCh = currentBook.chapters || 1;
+        chapterSelectEl.innerHTML = '<option value="">— 选章 —</option>';
+        for (let i = 0; i < totalCh; i++) {
+          const opt = document.createElement('option');
+          opt.value = i;
+          opt.textContent = `第 ${i + 1} 章`;
+          chapterSelectEl.appendChild(opt);
+        }
+        // 恢复进度
+        const prog = App.getProgress(bookId);
+        currentChapter = prog.chapterIndex || 0;
+        if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
+        updateProgress();
+      }
+
+      function updateProgress() {
+        if (!currentBook) {
+          progressFillEl.style.width = '0%';
+          progressTextEl.textContent = '0 / 0';
+          return;
+        }
+        const total = currentBook.chapters || 1;
+        const done = currentChapter + 1;
+        const pct = Math.min(100, Math.round((done / total) * 100));
+        progressFillEl.style.width = pct + '%';
+        progressTextEl.textContent = `${done} / ${total}（${pct}%）`;
+        if (currentBook) {
+          App.setProgress(currentBook.id, currentChapter);
+        }
+      }
+
+      // 6. Agent Tab 切换
+      document.querySelectorAll('.agent-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.agent-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAgent = btn.dataset.agent;
+          currentAgentNameEl.textContent = App.AGENT_NAMES[currentAgent] || currentAgent;
+          App.track('agent_chat', { action: 'switch', agent: currentAgent });
+        });
+      });
+
+      // 7. 发送消息
+      function escapeHtml(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function appendBubble(role, text) {
+        const div = document.createElement('div');
+        div.className = `chat-bubble ${role}`;
+        div.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+        chatStreamEl.appendChild(div);
+        chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
+      }
+
+      function appendThinking() {
+        const div = document.createElement('div');
+        div.className = 'chat-bubble thinking';
+        div.id = 'thinking-bubble';
+        div.textContent = '正在思考…';
+        chatStreamEl.appendChild(div);
+        chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
+        return div;
+      }
+
+      async function send() {
+        const text = chatInputEl.value.trim();
+        if (!text) return;
+        if (!currentBook) { alert('请先选一本书'); return; }
+        if (currentChapter == null || isNaN(currentChapter)) { alert('请先选一个章节'); return; }
+
+        appendBubble('user', text);
+        chatHistory.push({ role: 'user', text, agent: currentAgent });
+        chatInputEl.value = '';
+        chatSendBtn.disabled = true;
+
+        const thinkingEl = appendThinking();
+        const t0 = Date.now();
+        // D1 用 mock，D5 接真 API
+        const res = await App.callAgentMock(currentAgent, text);
+        thinkingEl.remove();
+        const elapsed = Date.now() - t0;
+
+        if (res.ok) {
+          const reply = res.data.reply;
+          appendBubble('agent', reply);
+          chatHistory.push({ role: 'agent', text: reply, agent: currentAgent });
+          App.track('agent_chat', {
+            agent: currentAgent,
+            bookId: currentBook.id,
+            chapter: currentChapter,
+            elapsedMs: elapsed,
+            source: 'mock',
+          });
+        } else {
+          appendBubble('agent', `（出错：${res.message || '请稍后重试'}）`);
+        }
+        chatSendBtn.disabled = false;
+      }
+
+      chatSendBtn.addEventListener('click', send);
+      chatInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      });
+
+      clearChatBtn.addEventListener('click', () => {
+        chatStreamEl.innerHTML = '';
+        chatHistory.length = 0;
+        appendBubble('agent', `对话已清空。有什么想聊的，发给我。`);
+      });
+
+      // 8. 去笔记工坊：保存当前章节思考题回答
+      goWorkshopBtn.addEventListener('click', () => {
+        const answers = Array.from(document.querySelectorAll('.answer-input'))
+          .map((el, i) => ({ qIndex: i + 1, answer: el.value.trim() }))
+          .filter(a => a.answer);
+        if (currentBook) {
+          App.saveNote({
+            bookId: currentBook.id,
+            bookTitle: currentBook.title,
+            chapter: currentChapter,
+            agent: currentAgent,
+            answers,
+            chatHistory: chatHistory.slice(-20), // 保留最近 20 条
+            template: null,
+          });
+          App.track('note_generate', { bookId: currentBook.id, chapter: currentChapter, action: 'goto_workshop' });
+        }
+        location.href = 'workshop.html';
+      });
+    });
+  </script>
+</body>
+</html>

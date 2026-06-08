@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>书详情 · 读透（ReadDeep）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: {
+          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d4', 100: '#f5f5f5' },
+          paper:  { 50: '#fafaf7', 100: '#f5e6d3', 200: '#e8d5b7' },
+          accent: { 500: '#c1272d', 600: '#a11f25' },
+        },
+        fontFamily: { sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+</head>
+<body class="bg-paper-50 text-ink-900 font-sans antialiased paper">
+
+  <header class="sticky top-0 z-40 bg-paper-50/90 backdrop-blur border-b border-paper-200">
+    <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-md bg-ink-900 text-paper-100 grid place-items-center font-bold">读</span>
+        <span class="font-semibold">读透 · ReadDeep</span>
+      </a>
+      <ul class="hidden md:flex items-center gap-6 text-sm text-ink-700">
+        <li><a href="library.html"  class="hover:text-accent-500">书库</a></li>
+        <li><a href="reader.html"   class="hover:text-accent-500">陪读室</a></li>
+        <li><a href="workshop.html" class="hover:text-accent-500">笔记工坊</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-12">
+
+    <!-- ========== 书籍详情 ========== -->
+    <div id="book-detail" class="mb-8 p-6 md:p-8 rounded-lg border border-paper-200 bg-paper-50">
+      <div class="text-7xl mb-4" id="book-cover">📚</div>
+      <h1 id="book-title" class="text-3xl font-bold mb-2">加载中…</h1>
+      <p id="book-meta" class="text-sm text-ink-500 mb-4"></p>
+      <p id="book-summary" class="text-ink-700 leading-relaxed"></p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a id="btn-read" href="reader.html" class="px-6 py-3 rounded-md bg-ink-900 text-paper-100 font-medium hover:bg-ink-700 text-center">开始陪读</a>
+        <a href="library.html" class="px-6 py-3 rounded-md border border-ink-300 text-ink-700 hover:border-ink-900 text-center">返回书库</a>
+      </div>
+    </div>
+
+    <!-- ========== 4 Agent 介绍 ========== -->
+    <div class="mb-8">
+      <h2 class="text-lg font-semibold mb-3">这本会陪你的 4 个 AI 角色</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="agent-avatar">
+          <span class="emoji">📖</span>
+          <span class="name">领读人</span>
+          <span class="text-xs text-ink-500 mt-1">拆脉络</span>
+        </div>
+        <div class="agent-avatar">
+          <span class="emoji">🤔</span>
+          <span class="name">苏格拉底</span>
+          <span class="text-xs text-ink-500 mt-1">5Why 追问</span>
+        </div>
+        <div class="agent-avatar">
+          <span class="emoji">🎨</span>
+          <span class="name">画师</span>
+          <span class="text-xs text-ink-500 mt-1">概念图</span>
+        </div>
+        <div class="agent-avatar">
+          <span class="emoji">✍️</span>
+          <span class="name">金句捕手</span>
+          <span class="text-xs text-ink-500 mt-1">3 句金句</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-paper-200 py-8 text-center text-xs text-ink-500">
+    <p>© 2026 读透（ReadDeep）</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      App.init();
+      App.track('page_view', { page: 'book_detail' });
+
+      const bookId = App.getQueryParam('id');
+      const coverEl = document.getElementById('book-cover');
+      const titleEl = document.getElementById('book-title');
+      const metaEl = document.getElementById('book-meta');
+      const summaryEl = document.getElementById('book-summary');
+      const btnRead = document.getElementById('btn-read');
+
+      if (!bookId) {
+        titleEl.textContent = '未指定书';
+        summaryEl.textContent = '请从书库选一本书进入。';
+        btnRead.style.display = 'none';
+        return;
+      }
+
+      try {
+        const resp = await fetch('data/books.json');
+        const json = await resp.json();
+        const book = (json.books || []).find(b => b.id === bookId);
+        if (!book) {
+          titleEl.textContent = '书不存在';
+          summaryEl.textContent = `找不到 id=${bookId} 的书`;
+          btnRead.style.display = 'none';
+          return;
+        }
+        coverEl.textContent = book.cover || '📚';
+        titleEl.textContent = book.title;
+        metaEl.textContent = `${book.author || '佚名'} · ${book.category || ''} · ${book.source === 'public_domain' ? '公版书' : '主公已读'} · ${book.chapters || 1} 章 · ${book.difficulty || '入门'}`;
+        summaryEl.textContent = book.summary || '';
+        btnRead.href = `reader.html?id=${book.id}`;
+        App.track('book_select', { bookId: book.id, source: 'detail_page' });
+      } catch (e) {
+        console.error('[book] 加载失败', e);
+        titleEl.textContent = '加载失败';
+        summaryEl.textContent = '请刷新重试';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>笔记工坊 · 读透（ReadDeep）</title>
+  <meta name="description" content="4 种模板 · 1 键生成公众号 / 小红书 / 思维导图 / 卡片分享。" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: {
+          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d4', 100: '#f5f5f5' },
+          paper:  { 50: '#fafaf7', 100: '#f5e6d3', 200: '#e8d5b7' },
+          accent: { 500: '#c1272d', 600: '#a11f25' },
+        },
+        fontFamily: { sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+</head>
+<body class="bg-paper-50 text-ink-900 font-sans antialiased paper">
+
+  <header class="sticky top-0 z-40 bg-paper-50/90 backdrop-blur border-b border-paper-200">
+    <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-md bg-ink-900 text-paper-100 grid place-items-center font-bold">读</span>
+        <span class="font-semibold">读透 · ReadDeep</span>
+      </a>
+      <ul class="hidden md:flex items-center gap-6 text-sm text-ink-700">
+        <li><a href="library.html"  class="hover:text-accent-500">书库</a></li>
+        <li><a href="reader.html"   class="hover:text-accent-500">陪读室</a></li>
+        <li><a href="workshop.html" class="text-accent-500 font-medium">笔记工坊</a></li>
+      </ul>
+      <a href="reader.html" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md border border-ink-300 hover:border-ink-900">返回陪读室</a>
+    </nav>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-12">
+
+    <!-- ========== 头部：上下文 ========== -->
+    <div class="mb-10">
+      <h1 class="text-3xl md:text-4xl font-bold mb-2">笔记工坊</h1>
+      <p class="text-ink-500 mb-4">把陪读室的内容，1 键变成可发布的笔记</p>
+      <div id="context-info" class="text-sm text-ink-700 p-3 rounded-md bg-paper-100 border border-paper-200">
+        当前：<span class="font-semibold">未关联到具体章节</span> · <a href="reader.html" class="text-accent-500 hover:underline">去陪读室选书选章</a>
+      </div>
+    </div>
+
+    <!-- ========== 4 种模板 ========== -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-4">选一种模板生成</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button class="template-card" data-template="wechat_article">
+          <span class="icon">📝</span>
+          <div class="title">公众号长文</div>
+          <p class="desc">1500-2500 字深度长文，结构完整，可直接发布到公众号。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：知识博主 / 深度分享</p>
+        </button>
+        <button class="template-card" data-template="xhs_6frame">
+          <span class="icon">📱</span>
+          <div class="title">小红书 6 帧图文</div>
+          <p class="desc">3:4 轮播图 · 6 帧 · 钩子 + 干货 + CTA。直接喂给 caiji-xhs-writer 渲染。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：种草 / 流量 / 引流公众号</p>
+        </button>
+        <button class="template-card" data-template="mindmap">
+          <span class="icon">🧠</span>
+          <div class="title">思维导图</div>
+          <p class="desc">Excalidraw / Markdown 双格式。结构化呈现整本书 / 整章的核心脉络。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：复习 / 分享 / 二次创作</p>
+        </button>
+        <button class="template-card" data-template="card_share">
+          <span class="icon">💳</span>
+          <div class="title">卡片分享</div>
+          <p class="desc">3 张金句卡片（1:1），朋友圈 / 微信群 / 即刻 通用。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：日常发圈 / 个人 IP</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- ========== 生成结果区 ========== -->
+    <section id="result-section" class="hidden mb-10">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">
+          生成结果
+          <span id="result-template-label" class="text-sm text-ink-500 ml-2"></span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <button id="copy-result" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">复制</button>
+          <button id="download-md" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">下载 .md</button>
+        </div>
+      </div>
+      <div id="result-meta" class="text-xs text-ink-500 mb-3"></div>
+      <pre id="result-content" class="p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50 text-sm whitespace-pre-wrap font-sans overflow-x-auto"></pre>
+
+      <!-- 导出 -->
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <span class="text-sm text-ink-500">导出到：</span>
+        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="feishu">📋 飞书</button>
+        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="obsidian">📂 Obsidian</button>
+        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="markdown">⬇ Markdown</button>
+        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="copy">📄 复制全部</button>
+      </div>
+    </section>
+
+    <!-- ========== 历史记录 ========== -->
+    <section>
+      <h2 class="text-lg font-semibold mb-3">历史笔记</h2>
+      <div id="notes-history" class="space-y-2">
+        <p class="text-sm text-ink-500">暂无历史笔记</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-paper-200 py-8 text-center text-xs text-ink-500">
+    <p>© 2026 读透（ReadDeep）</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      App.init();
+      App.track('page_view', { page: 'workshop' });
+
+      const TEMPLATES = {
+        wechat_article: '公众号长文',
+        xhs_6frame:     '小红书 6 帧图文',
+        mindmap:        '思维导图',
+        card_share:     '卡片分享',
+      };
+
+      const contextInfo = document.getElementById('context-info');
+      const resultSection = document.getElementById('result-section');
+      const resultLabel = document.getElementById('result-template-label');
+      const resultMeta = document.getElementById('result-meta');
+      const resultContent = document.getElementById('result-content');
+      const copyBtn = document.getElementById('copy-result');
+      const downloadBtn = document.getElementById('download-md');
+      const notesHistoryEl = document.getElementById('notes-history');
+
+      let currentResult = null;
+      let currentTemplate = null;
+      let latestNote = null;
+
+      // 1. 加载最近一次笔记
+      const notes = App.getNotes();
+      if (notes.length > 0) {
+        latestNote = notes[notes.length - 1];
+        contextInfo.innerHTML = `当前：<span class="font-semibold">${escapeHtml(latestNote.bookTitle || '未关联')}</span> · 第 ${(latestNote.chapter || 0) + 1} 章 · 思考题 ${latestNote.answers?.length || 0} 道 · <a href="reader.html" class="text-accent-500 hover:underline">换一本</a>`;
+      }
+
+      // 2. 历史列表
+      if (notes.length > 0) {
+        notesHistoryEl.innerHTML = notes.slice().reverse().slice(0, 10).map(n => `
+          <div class="p-3 rounded border border-paper-200 bg-paper-50 text-sm flex items-center justify-between">
+            <div>
+              <span class="font-semibold">${escapeHtml(n.bookTitle || '未关联')}</span>
+              <span class="text-xs text-ink-500 ml-2">第 ${(n.chapter || 0) + 1} 章</span>
+              <span class="text-xs text-ink-500 ml-2">${n.template ? `· ${TEMPLATES[n.template] || n.template}` : '· 未生成'}</span>
+            </div>
+            <span class="text-xs text-ink-500">${(n.createdAt || '').slice(0, 10)}</span>
+          </div>
+        `).join('');
+      }
+
+      // 3. 模板点击 → 生成
+      document.querySelectorAll('.template-card').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const tpl = btn.dataset.template;
+          await generate(tpl);
+        });
+      });
+
+      async function generate(templateKey) {
+        if (!latestNote) {
+          alert('请先去陪读室读一章，再回来生成笔记');
+          location.href = 'reader.html';
+          return;
+        }
+
+        currentTemplate = templateKey;
+        resultLabel.textContent = `· ${TEMPLATES[templateKey]}`;
+        resultMeta.textContent = '生成中…';
+        resultContent.textContent = '';
+        resultSection.classList.remove('hidden');
+        resultSection.scrollIntoView({ behavior: 'smooth' });
+
+        // D1 mock：根据模板 + 上下文生成占位文本
+        const ctx = `《${latestNote.bookTitle}》 第 ${(latestNote.chapter || 0) + 1} 章 · 思考题 ${latestNote.answers?.length || 0} 道`;
+        await new Promise(r => setTimeout(r, 400));
+
+        const mockResult = {
+          wechat_article: `# ${latestNote.bookTitle} 读书笔记
+
+> **D1 占位输出 · D4 接 DeepSeek 真生成**
+
+## 一、为什么读这本书
+
+${ctx}
+
+## 二、本章要点
+
+${(latestNote.answers || []).slice(0, 3).map((a, i) => `${i + 1}. ${a.answer}`).join('\n') || '（暂无回答）'}
+
+## 三、3 个金句
+
+- "读书是 AI 时代最有效的增长路径。"
+- "把时间花在不变的事情上。"
+- "不输出不成长。"
+
+## 四、推荐行动
+
+1. 把本章笔记发到朋友圈
+2. 用其中 1 句写一篇小红书
+3. 下周继续读下一章
+
+---
+© 2026 读透（ReadDeep）
+`,
+          xhs_6frame: `{
+  "title": "${latestNote.bookTitle} 读完 1 章我学到了什么",
+  "frames": [
+    { "n": 1, "type": "cover", "text": "读 1 本书 30 天\n我靠这 4 个 AI 角色" },
+    { "n": 2, "type": "hook",  "text": "很多人读书 = 没读\n你缺的是陪练" },
+    { "n": 3, "type": "value", "text": "${ctx}\n${(latestNote.answers || [])[0]?.answer?.slice(0, 50) || '核心要点待补'}" },
+    { "n": 4, "type": "value", "text": "${(latestNote.answers || [])[1]?.answer?.slice(0, 50) || '第二要点待补'}" },
+    { "n": 5, "type": "twist", "text": "你愿意花 1 杯奶茶钱\n让 4 个 AI 陪你读 1 本书吗？" },
+    { "n": 6, "type": "cta",   "text": "评论区扣 1\n领读透书库 50 本" }
+  ]
+}`,
+          mindmap: `# ${latestNote.bookTitle} · 思维导图
+
+## 中心主题
+${latestNote.bookTitle}
+
+## 核心分支
+
+- **第 ${(latestNote.chapter || 0) + 1} 章**
+  - 思考题 1：${(latestNote.answers || [])[0]?.answer?.slice(0, 60) || '待补'}
+  - 思考题 2：${(latestNote.answers || [])[1]?.answer?.slice(0, 60) || '待补'}
+  - 思考题 3：${(latestNote.answers || [])[2]?.answer?.slice(0, 60) || '待补'}
+
+- **3 个金句**
+  - "读书是 AI 时代最有效的增长路径"
+  - "把时间花在不变的事情上"
+  - "不输出不成长"
+
+## Excalidraw SVG
+（待 D5 鲁班出图）
+
+---
+（D1 占位 · D4 接 DeepSeek）`,
+          card_share: `# ${latestNote.bookTitle} · 3 张金句卡
+
+## 卡 1（封面）
+> **${latestNote.bookTitle}**
+> 
+> 读完 1 章最大的收获
+
+## 卡 2（核心）
+> "读书是 AI 时代最有效的增长路径。"
+
+## 卡 3（行动）
+> **今天开始读 1 本书**
+> 
+> 30 本公版书免费陪读
+
+---
+（D1 占位 · D4 接 DeepSeek）`,
+        }[templateKey];
+
+        currentResult = mockResult;
+        resultContent.textContent = mockResult;
+        resultMeta.innerHTML = `D1 占位 · 模板：${TEMPLATES[templateKey]} · ${ctx}`;
+
+        // 更新笔记草稿
+        latestNote.template = templateKey;
+        latestNote.result = mockResult;
+        App.saveNote(latestNote);
+
+        App.track('note_generate', {
+          template: templateKey,
+          bookId: latestNote.bookId,
+          chapter: latestNote.chapter,
+        });
+      }
+
+      // 4. 复制 / 下载 / 导出
+      copyBtn.addEventListener('click', async () => {
+        if (!currentResult) return;
+        try {
+          await navigator.clipboard.writeText(currentResult);
+          copyBtn.textContent = '已复制';
+          setTimeout(() => { copyBtn.textContent = '复制'; }, 1200);
+          App.track('book_share', { action: 'copy', template: currentTemplate });
+        } catch (e) {
+          console.warn('[copy] 失败', e);
+        }
+      });
+
+      downloadBtn.addEventListener('click', () => {
+        if (!currentResult || !latestNote) return;
+        const blob = new Blob([currentResult], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${latestNote.bookTitle || 'note'}_${currentTemplate}_${Date.now()}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        App.track('book_share', { action: 'download_md', template: currentTemplate });
+      });
+
+      document.querySelectorAll('.export-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.dataset.export;
+          if (target === 'copy') { copyBtn.click(); return; }
+          if (target === 'markdown') { downloadBtn.click(); return; }
+          if (target === 'feishu') {
+            alert('D2 接入：复制到飞书剪贴板 → 在飞书文档 Cmd+V 即可（API 待 D4）');
+            App.track('book_share', { action: 'export_feishu', template: currentTemplate });
+            return;
+          }
+          if (target === 'obsidian') {
+            alert('D2 接入：下载到本地 → 拖入 范家书阁/02-学习/ 目录即可（同步走 obsidian-mcp-sync）');
+            App.track('book_share', { action: 'export_obsidian', template: currentTemplate });
+            return;
+          }
+        });
+      });
+
+      function escapeHtml(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    });
+  </script>
+</body>
+</html>
