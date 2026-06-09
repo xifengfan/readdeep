@@ -1,0 +1,14 @@
+{
+  "name": "readdeep",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "comment": "P2 readdeep 根 package.json · CF Workers build 需要 · 2026-06-09 由卧龙加",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  }
+}
