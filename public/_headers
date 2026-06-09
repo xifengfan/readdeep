@@ -11,7 +11,7 @@
   Expires: 0
 
 # JS 文件
-/*.js
+*.js
   Cache-Control: public, max-age=3600
 
 /images/*
