@@ -140,24 +140,24 @@
         <span class="text-xs text-ink-500">3-5 道 · 答完生成笔记</span>
       </div>
       <div id="question-list">
-        <div class="question-card">
+        <div class="question-card" data-q-index="1">
           <div class="flex items-start mb-2">
             <span class="q-num">1</span>
-            <p class="text-sm text-ink-900 flex-1">这一章的核心主张是什么？你能用 1 句话概括吗？</p>
+            <p class="text-sm text-ink-900 flex-1" data-q-text>这一章的核心主张是什么？你能用 1 句话概括吗？</p>
           </div>
           <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
         </div>
-        <div class="question-card">
+        <div class="question-card" data-q-index="2">
           <div class="flex items-start mb-2">
             <span class="q-num">2</span>
-            <p class="text-sm text-ink-900 flex-1">作者为什么这样论证？如果是你，会怎么写？</p>
+            <p class="text-sm text-ink-900 flex-1" data-q-text>作者为什么这样论证？如果是你，会怎么写？</p>
           </div>
           <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
         </div>
-        <div class="question-card">
+        <div class="question-card" data-q-index="3">
           <div class="flex items-start mb-2">
             <span class="q-num">3</span>
-            <p class="text-sm text-ink-900 flex-1">这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？</p>
+            <p class="text-sm text-ink-900 flex-1" data-q-text>这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？</p>
           </div>
           <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
         </div>
@@ -255,6 +255,8 @@
         if (typeof window.onChapterChange === 'function') window.onChapterChange(currentChapter);
         updateProgress();
         loadChapterContent();
+        // P1-B 修复：切章节后加载该章节的思考题答案
+        loadThinkingAnswers();
         if (currentBook) App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
       });
 
@@ -281,6 +283,8 @@
         if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
         updateProgress();
         loadChapterContent();
+        // P1-B 修复：切书后加载该书的思考题答案
+        loadThinkingAnswers();
       }
 
       // === 方案 5 · 最小版：右侧折叠面板加载章节原文 ===
@@ -359,6 +363,53 @@
           App.track('note_generate', { bookId: currentBook.id, chapter: currentChapter, action: 'goto_workshop' });
         }
         location.href = 'workshop.html';
+      });
+
+      // 9. P1-B 修复（2026-06-09 吕玲绮）：思考题答案进 localStorage，sendMessage 时拼上下文
+      //    key 格式：readdeep.thinkingAnswers.{bookId} → {chapter: {qIndex: {qText, answer}}}
+      const THINKING_KEY = (bookId) => `readdeep.thinkingAnswers.${bookId}`;
+
+      function getThinkingAnswers() {
+        if (!currentBook) return [];
+        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
+        const ch = all[currentChapter];
+        if (!ch) return [];
+        return Object.keys(ch)
+          .map(k => ({ qIndex: Number(k), ...ch[k] }))
+          .filter(a => a.answer && a.answer.trim())
+          .sort((a, b) => a.qIndex - b.qIndex);
+      }
+
+      function saveThinkingAnswers() {
+        if (!currentBook) return;
+        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
+        const ch = {};
+        document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
+          const qIndex = Number(card.dataset.qIndex);
+          const qText = (card.querySelector('[data-q-text]') || {}).textContent || '';
+          const answer = (card.querySelector('.answer-input') || {}).value || '';
+          ch[qIndex] = { qText, answer: answer.trim() };
+        });
+        all[currentChapter] = ch;
+        try { localStorage.setItem(THINKING_KEY(currentBook.id), JSON.stringify(all)); }
+        catch (e) { console.warn('[reader] 存思考题失败', e); }
+      }
+
+      function loadThinkingAnswers() {
+        if (!currentBook) return;
+        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
+        const ch = all[currentChapter] || {};
+        document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
+          const qIndex = Number(card.dataset.qIndex);
+          const item = ch[qIndex];
+          const ta = card.querySelector('.answer-input');
+          if (ta) ta.value = (item && item.answer) || '';
+        });
+      }
+
+      // 绑 input 事件（每次输入就存，不依赖发送）
+      document.querySelectorAll('.answer-input').forEach(ta => {
+        ta.addEventListener('input', saveThinkingAnswers);
       });
     });
   </script>

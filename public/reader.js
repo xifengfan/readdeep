@@ -165,12 +165,17 @@ async function sendMessage() {
   // 3. 调 /api/chat
   try {
     const chapter = window.__readerState?.currentChapter ?? 0;
+    // P1-B 修复（2026-06-09 吕玲绮）：拼主公本章思考题答案到 bookContext
+    const thinkingAnswers = getThinkingAnswers(currentBookId, chapter);
+    const bookContextWithAnswers = currentBookContext
+      ? { ...currentBookContext, thinkingAnswers }
+      : { thinkingAnswers };
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bookId: currentBookId,
-        bookContext: currentBookContext,
+        bookContext: bookContextWithAnswers,
         chapter,
         agent: currentAgent,
         userMessage: text,
@@ -212,6 +217,27 @@ function renderChat() {
     appendBubble(msg.role === 'user' ? 'user' : 'agent', msg.content);
   });
   stream.scrollTop = stream.scrollHeight;
+}
+
+// ========== P1-B 修复（2026-06-09 吕玲绮）==========
+// 取主公本章思考题答案（从 localStorage 读，按 chapter 分组）
+// 返回 [{qIndex, qText, answer}]，供 sendMessage 拼进 bookContext
+function getThinkingAnswers(bookId, chapter) {
+  if (!bookId) return [];
+  try {
+    const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
+    if (!raw) return [];
+    const all = JSON.parse(raw);
+    const ch = all[chapter];
+    if (!ch) return [];
+    return Object.keys(ch)
+      .map(k => ({ qIndex: Number(k), ...ch[k] }))
+      .filter(a => a.answer && String(a.answer).trim())
+      .sort((a, b) => a.qIndex - b.qIndex);
+  } catch (e) {
+    console.warn('[reader.js] 读思考题答案失败', e);
+    return [];
+  }
 }
 
 function appendBubble(role, text, id = null) {
