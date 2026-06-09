@@ -43,7 +43,7 @@ const PROMPT_BUILDERS = {
 ]
 
 【当前书】${ctx.bookContext?.title || '未指定'}
-严格按 JSON 输出，不加 ```json``` 标记外的内容。
+严格按 JSON 输出，不加 \`\`\`json\`\`\` 标记外的内容。
 `,
 
   optimize: (ctx) => `你是「笔记润色师」。
