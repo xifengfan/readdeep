@@ -94,13 +94,12 @@
       <div id="result-meta" class="text-xs text-ink-500 mb-3"></div>
       <pre id="result-content" class="p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50 text-sm whitespace-pre-wrap font-sans overflow-x-auto"></pre>
 
-      <!-- 导出 -->
+      <!-- 导出 · B 降级：仅 Copy + Markdown；飞书/Obsidian 推到 D6 -->
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <span class="text-sm text-ink-500">导出到：</span>
-        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="feishu">📋 飞书</button>
-        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="obsidian">📂 Obsidian</button>
-        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="markdown">⬇ Markdown</button>
-        <button class="export-btn px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900" data-export="copy">📄 复制全部</button>
+        <button id="export-copy"     class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">📄 复制全部</button>
+        <button id="export-markdown" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">⬇ 下载 .md</button>
+        <span class="text-xs text-ink-500 ml-1">📝 飞书 / Obsidian 导出计划在 D6 接入</span>
       </div>
     </section>
 
@@ -445,49 +444,106 @@ ${noteReply}
       }
 
       // 4. 复制 / 下载 / 导出
-      copyBtn.addEventListener('click', async () => {
-        if (!currentResult) return;
-        try {
-          await navigator.clipboard.writeText(currentResult);
-          copyBtn.textContent = '已复制';
-          setTimeout(() => { copyBtn.textContent = '复制'; }, 1200);
-          App.track('book_share', { action: 'copy', template: currentTemplate });
-        } catch (e) {
-          console.warn('[copy] 失败', e);
-        }
-      });
+      //    B 降级：仅 Copy + Markdown 下载；飞书 / Obsidian 推到 D6
+      //    顶部 copyBtn（生成结果区右上角）与底部 export-copy 共用同一逻辑
+      //    顶部 downloadBtn 与底部 export-markdown 同理
 
-      downloadBtn.addEventListener('click', () => {
-        if (!currentResult || !latestNote) return;
+      /** 复制文本到剪贴板（现代 API + 旧版 fallback） */
+      async function copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return true;
+          } catch (e) {
+            console.warn('[copy] clipboard API 失败，降级到 execCommand', e);
+          }
+        }
+        // Fallback：旧版 textarea + execCommand
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { console.warn('[copy] execCommand 失败', e); }
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      /** 生成 Markdown 下载文件名 · 读透笔记-{书名}-{时间戳}.md */
+      function buildMarkdownFilename(bookTitle) {
+        const safeTitle = (bookTitle || '未指定').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+        const d = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+        return `读透笔记-${safeTitle}-${ts}.md`;
+      }
+
+      async function handleCopy(source) {
+        if (!currentResult) { showToast('还没有生成结果', 'warn'); return; }
+        const ok = await copyToClipboard(currentResult);
+        if (ok) {
+          showToast('已复制到剪贴板');
+          App.track('book_share', { action: 'copy', template: currentTemplate, source });
+        } else {
+          showToast('复制失败，请手动复制', 'error');
+        }
+      }
+
+      function handleDownload(source) {
+        if (!currentResult) { showToast('还没有生成结果', 'warn'); return; }
+        if (!latestNote)  { showToast('缺少笔记上下文', 'error'); return; }
+        const filename = buildMarkdownFilename(latestNote.bookTitle);
         const blob = new Blob([currentResult], { type: 'text/markdown;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${latestNote.bookTitle || 'note'}_${currentTemplate}_${Date.now()}.md`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        App.track('book_share', { action: 'download_md', template: currentTemplate });
+        showToast(`已下载：${filename}`);
+        App.track('book_share', { action: 'download_md', template: currentTemplate, source, filename });
+      }
+
+      // 顶部按钮（生成结果区右上角）—— 保留旧的 id="copy-result" / id="download-md"
+      copyBtn.addEventListener('click', () => {
+        handleCopy('top');
+        // 保留旧的“已复制”反馈
+        copyBtn.textContent = '已复制';
+        setTimeout(() => { copyBtn.textContent = '复制'; }, 1200);
       });
 
-      document.querySelectorAll('.export-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const target = btn.dataset.export;
-          if (target === 'copy') { copyBtn.click(); return; }
-          if (target === 'markdown') { downloadBtn.click(); return; }
-          if (target === 'feishu') {
-            alert('D2 接入：复制到飞书剪贴板 → 在飞书文档 Cmd+V 即可（API 待 D4）');
-            App.track('book_share', { action: 'export_feishu', template: currentTemplate });
-            return;
-          }
-          if (target === 'obsidian') {
-            alert('D2 接入：下载到本地 → 拖入 范家书阁/02-学习/ 目录即可（同步走 obsidian-mcp-sync）');
-            App.track('book_share', { action: 'export_obsidian', template: currentTemplate });
-            return;
-          }
-        });
-      });
+      downloadBtn.addEventListener('click', () => handleDownload('top'));
+
+      // 底部按钮（导出区）—— 新加的 id
+      const exportCopyBtn     = document.getElementById('export-copy');
+      const exportMarkdownBtn = document.getElementById('export-markdown');
+      if (exportCopyBtn)     exportCopyBtn.addEventListener('click', () => handleCopy('bottom'));
+      if (exportMarkdownBtn) exportMarkdownBtn.addEventListener('click', () => handleDownload('bottom'));
+
+      /**
+       * Toast 提示组件（取代 alert）
+       * @param {string} message 提示文本
+       * @param {'success'|'warn'|'error'} type
+       */
+      function showToast(message, type = 'success') {
+        const t = document.createElement('div');
+        t.className = `toast toast-${type}`;
+        t.textContent = message;
+        document.body.appendChild(t);
+        // 强制重排，触发 transition
+        void t.offsetWidth;
+        t.classList.add('toast-show');
+        setTimeout(() => {
+          t.classList.remove('toast-show');
+          setTimeout(() => t.remove(), 250);
+        }, 2500);
+      }
 
       function escapeHtml(s) {
         return String(s == null ? '' : s)
