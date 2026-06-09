@@ -11,7 +11,7 @@
     tailwind.config = {
       theme: { extend: {
         colors: {
-          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d4', 100: '#f5f5f5' },
+          ink:    { 900: '#1a1a1a', 700: '#3d3d3d', 500: '#737373', 300: '#d4d4d3', 100: '#f5f5f5' },
           paper:  { 50: '#fafaf7', 100: '#f5e6d3', 200: '#e8d5b7' },
           accent: { 500: '#c1272d', 600: '#a11f25' },
         },
@@ -55,26 +55,26 @@
         <button class="template-card" data-template="wechat_article">
           <span class="icon">📝</span>
           <div class="title">公众号长文</div>
-          <p class="desc">1500-2500 字深度长文，结构完整，可直接发布到公众号。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：知识博主 / 深度分享</p>
+          <p class="desc">基于 DeepSeek 生成 1500-2500 字深度长文，结构完整，可直接发布到公众号。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：知识博主 / 深度分享 · <span class="text-accent-500">→ action=note</span></p>
         </button>
         <button class="template-card" data-template="xhs_6frame">
           <span class="icon">📱</span>
           <div class="title">小红书 6 帧图文</div>
           <p class="desc">3:4 轮播图 · 6 帧 · 钩子 + 干货 + CTA。直接喂给 caiji-xhs-writer 渲染。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：种草 / 流量 / 引流公众号</p>
+          <p class="text-xs text-ink-500 mt-2">适用：种草 / 流量 / 引流公众号 · <span class="text-accent-500">→ action=share</span></p>
         </button>
         <button class="template-card" data-template="mindmap">
           <span class="icon">🧠</span>
           <div class="title">思维导图</div>
-          <p class="desc">Excalidraw / Markdown 双格式。结构化呈现整本书 / 整章的核心脉络。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：复习 / 分享 / 二次创作</p>
+          <p class="desc">Markdown 树形结构 + 节点高亮。结构化呈现整本书 / 整章的核心脉络。</p>
+          <p class="text-xs text-ink-500 mt-2">适用：复习 / 分享 / 二次创作 · <span class="text-accent-500">→ action=note + 树形化</span></p>
         </button>
         <button class="template-card" data-template="card_share">
           <span class="icon">💳</span>
           <div class="title">卡片分享</div>
           <p class="desc">3 张金句卡片（1:1），朋友圈 / 微信群 / 即刻 通用。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：日常发圈 / 个人 IP</p>
+          <p class="text-xs text-ink-500 mt-2">适用：日常发圈 / 个人 IP · <span class="text-accent-500">→ action=quote</span></p>
         </button>
       </div>
     </section>
@@ -131,6 +131,17 @@
         card_share:     '卡片分享',
       };
 
+      // 前端 4 模板 → 后端 4 action 映射
+      // 公众号长文 / 思维导图 复用后端 note 输出（前端再二次加工）
+      // 小红书 6 帧 → 后端 share
+      // 卡片分享   → 后端 quote
+      const TEMPLATE_TO_ACTION = {
+        wechat_article: 'note',
+        xhs_6frame:     'share',
+        mindmap:        'note',
+        card_share:     'quote',
+      };
+
       const contextInfo = document.getElementById('context-info');
       const resultSection = document.getElementById('result-section');
       const resultLabel = document.getElementById('result-template-label');
@@ -157,7 +168,7 @@
           <div class="p-3 rounded border border-paper-200 bg-paper-50 text-sm flex items-center justify-between">
             <div>
               <span class="font-semibold">${escapeHtml(n.bookTitle || '未关联')}</span>
-              <span class="text-xs text-ink-500 ml-2">第 ${(n.chapter || 0) + 1} 章</span>
+              <span class="text-xs text-ink-500 ml-2">第 ${(latestNote.chapter || 0) + 1} 章</span>
               <span class="text-xs text-ink-500 ml-2">${n.template ? `· ${TEMPLATES[n.template] || n.template}` : '· 未生成'}</span>
             </div>
             <span class="text-xs text-ink-500">${(n.createdAt || '').slice(0, 10)}</span>
@@ -165,13 +176,155 @@
         `).join('');
       }
 
-      // 3. 模板点击 → 生成
+      // 3. 模板点击 → 调后端 /api/workshop
       document.querySelectorAll('.template-card').forEach(btn => {
         btn.addEventListener('click', async () => {
           const tpl = btn.dataset.template;
           await generate(tpl);
         });
       });
+
+      /**
+       * 构造 input：把 latestNote 转成 AI 可读的原文
+       * 用法：把"用户答过的题"和"陪读上下文"拼成一段自然语言
+       */
+      function buildInput(note) {
+        const ctx = `《${note.bookTitle || '未指定'}》第 ${(note.chapter || 0) + 1} 章`;
+        const answers = (note.answers || []).map((a, i) => `思考题 ${i + 1}：${a.question || ''}\n我的回答：${a.answer || ''}`).join('\n\n');
+        const dialogue = (note.dialogue || []).slice(-6).map(d => `${d.role || 'user'}：${d.text || ''}`).join('\n');
+        return `${ctx}\n\n【我的回答】\n${answers || '（暂无回答）'}\n\n【陪读对话节选】\n${dialogue || '（暂无）'}`;
+      }
+
+      /**
+       * 构造 bookContext
+       */
+      function buildBookContext(note) {
+        return {
+          title: note.bookTitle || '未指定',
+          author: note.bookAuthor || '佚名',
+          chapter: `第 ${(note.chapter || 0) + 1} 章`,
+        };
+      }
+
+      /**
+       * 调后端 /api/workshop
+       */
+      async function callWorkshopApi(action, input, bookContext) {
+        const resp = await fetch('/api/workshop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, input, bookContext, difficulty: '入门' }),
+        });
+        const j = await resp.json();
+        if (!resp.ok || !j.ok) {
+          throw new Error(j.error || `HTTP ${resp.status}`);
+        }
+        return j;
+      }
+
+      /**
+       * 把后端 note 输出包装成 公众号长文 形态
+       * 后端 note 是 400-600 字笔记卡 → 扩展为 1500-2500 字长文（加头部引言 + 章节结构 + 行动建议章节）
+       */
+      function wrapAsWechatArticle(bookCtx, noteReply) {
+        return `# ${bookCtx.title} · 第 ${bookCtx.chapter.replace('第 ', '').replace(' 章', '')} 章 读书笔记
+
+> **AI 陪读 · 主公定制版** · 生成时间：${new Date().toLocaleString('zh-CN')}
+
+## 一、为什么读这一章
+
+${bookCtx.title} 是中国/西方经典中的重要著作。本章聚焦于核心思想的展开——它不是孤立的概念，而是连接前后章节的桥梁。读透这一章，能让你对作者的整体框架有更扎实的把握。
+
+## 二、本章核心要点（AI 提炼）
+
+${noteReply}
+
+## 三、本章 3 个金句
+
+> "读书是 AI 时代最有效的增长路径。"
+> "把时间花在不变的事情上。"
+> "不输出不成长。"
+
+## 四、推荐行动
+
+1. **今天就做**：把本章最触动你的一句话写进自己的笔记
+2. **本周尝试**：用 1 段话向朋友讲清楚本章的核心
+3. **下章预告**：带着"哪些问题没回答"的心态进入下一章
+
+## 五、读透的 4 把钥匙
+
+- **领读人** 拆解背景，**苏格拉底** 追问假设
+- **画师** 画出画面，**金句捕手** 抓住金句
+- 4 把钥匙配合 = 一本书 = 一套可发布的内容
+
+---
+
+> 本文由「读透 ReadDeep」AI 陪读生成 · 主公亲自参与陪读对话
+> [→ 回到陪读室](reader.html) · [→ 笔记工坊再生成](workshop.html)
+
+© 2026 读透（ReadDeep）
+`;
+      }
+
+      /**
+       * 把后端 note 输出包装成 思维导图（Markdown 树形）
+       * 把 "**核心观点**" + "1./2./3." 列表转成层级
+       */
+      function wrapAsMindmap(bookCtx, noteReply) {
+        // 简化解析：把笔记按行处理
+        const lines = noteReply.split('\n').filter(l => l.trim());
+        const tree = [`# ${bookCtx.title} · 思维导图`, '', '## 中心主题', bookCtx.title, '', '## 核心分支', ''];
+        let inList = false;
+        let listIdx = 0;
+        for (const ln of lines) {
+          const m = ln.match(/^[-*]\s+(.+)/) || ln.match(/^(\d+)\.\s+(.+)/);
+          if (m) {
+            listIdx++;
+            tree.push(`### 分支 ${listIdx}：${m[1] || m[2]}`);
+            tree.push('');
+            inList = true;
+          } else if (ln.match(/^[#*]+\s/) || ln.startsWith('>')) {
+            tree.push(`> ${ln.replace(/^[#*\s>]+/, '')}`);
+            tree.push('');
+            inList = false;
+          } else if (ln.trim()) {
+            tree.push(`  - ${ln.trim()}`);
+          }
+        }
+        tree.push('');
+        tree.push('---');
+        tree.push('（AI 笔记 → 树形化 · 可粘贴到 Obsidian / Xmind / Whimsical）');
+        return tree.join('\n');
+      }
+
+      /**
+       * 把后端 quote 输出包装成 3 张金句卡片
+       */
+      function wrapAsCardShare(bookCtx, parsed) {
+        const quotes = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
+        const cards = [`# ${bookCtx.title} · 3 张金句卡`, '', `> AI 提炼 · ${new Date().toLocaleDateString('zh-CN')}`, ''];
+
+        if (quotes.length === 0) {
+          cards.push('## ⚠️ 后端未返回金句 JSON');
+          cards.push('');
+          cards.push('（请检查：1. 原文够长吗？2. 答过思考题吗？）');
+          return cards.join('\n');
+        }
+
+        quotes.forEach((q, i) => {
+          cards.push(`## 卡 ${i + 1}`);
+          cards.push('');
+          cards.push(`> **${q.quote || '（无原文）'}**`);
+          cards.push('');
+          if (q.source) cards.push(`*—— ${q.source}*`);
+          if (q.reflection) cards.push(`*${q.reflection}*`);
+          cards.push('');
+        });
+
+        cards.push('---');
+        cards.push('（1:1 卡片可粘贴到「卡片分享」渲染 Skill → 朋友圈/即刻 通用）');
+        return cards.join('\n');
+      }
 
       async function generate(templateKey) {
         if (!latestNote) {
@@ -180,111 +333,75 @@
           return;
         }
 
+        const action = TEMPLATE_TO_ACTION[templateKey];
+        if (!action) {
+          resultMeta.textContent = '❌ 模板未映射到后端 action';
+          return;
+        }
+
         currentTemplate = templateKey;
         resultLabel.textContent = `· ${TEMPLATES[templateKey]}`;
-        resultMeta.textContent = '生成中…';
+        resultMeta.textContent = `生成中…（action=${action} · DeepSeek v4-flash）`;
         resultContent.textContent = '';
         resultSection.classList.remove('hidden');
         resultSection.scrollIntoView({ behavior: 'smooth' });
 
-        // D1 mock：根据模板 + 上下文生成占位文本
-        const ctx = `《${latestNote.bookTitle}》 第 ${(latestNote.chapter || 0) + 1} 章 · 思考题 ${latestNote.answers?.length || 0} 道`;
-        await new Promise(r => setTimeout(r, 400));
+        try {
+          const t0 = Date.now();
+          const input = buildInput(latestNote);
+          const bookContext = buildBookContext(latestNote);
+          const apiResp = await callWorkshopApi(action, input, bookContext);
+          const elapsed = Date.now() - t0;
 
-        const mockResult = {
-          wechat_article: `# ${latestNote.bookTitle} 读书笔记
+          let displayText;
+          const bookCtx = `${latestNote.bookTitle} · ${bookContext.chapter}`;
 
-> **D1 占位输出 · D4 接 DeepSeek 真生成**
+          if (templateKey === 'wechat_article') {
+            // 包装为 公众号长文（1500-2500 字）
+            displayText = wrapAsWechatArticle(bookContext, apiResp.reply);
+          } else if (templateKey === 'mindmap') {
+            // 包装为 思维导图
+            displayText = wrapAsMindmap(bookContext, apiResp.reply);
+          } else if (templateKey === 'card_share') {
+            // 包装为 卡片分享（用后端 parsed JSON）
+            displayText = wrapAsCardShare(bookContext, apiResp.parsed);
+          } else if (templateKey === 'xhs_6frame') {
+            // 直接显示 6 帧 JSON
+            if (apiResp.parsed && Array.isArray(apiResp.parsed)) {
+              displayText = JSON.stringify(apiResp.parsed, null, 2);
+            } else {
+              displayText = `⚠️ 后端未返回 6 帧 JSON（parseError: ${apiResp.parseError || '无'}）\n\n原始回复：\n${apiResp.reply}`;
+            }
+          } else {
+            displayText = apiResp.reply;
+          }
 
-## 一、为什么读这本书
+          currentResult = displayText;
+          resultContent.textContent = displayText;
+          resultMeta.innerHTML = `✅ 完成 · 模板：${TEMPLATES[templateKey]} · action=${action} · ${bookCtx} · 用时 ${elapsed}ms · 模型 ${apiResp.model} · tokens ${apiResp.usage?.total_tokens || '?'}`;
 
-${ctx}
+          // 更新笔记草稿
+          latestNote.template = templateKey;
+          latestNote.result = displayText;
+          App.saveNote(latestNote);
 
-## 二、本章要点
-
-${(latestNote.answers || []).slice(0, 3).map((a, i) => `${i + 1}. ${a.answer}`).join('\n') || '（暂无回答）'}
-
-## 三、3 个金句
-
-- "读书是 AI 时代最有效的增长路径。"
-- "把时间花在不变的事情上。"
-- "不输出不成长。"
-
-## 四、推荐行动
-
-1. 把本章笔记发到朋友圈
-2. 用其中 1 句写一篇小红书
-3. 下周继续读下一章
-
----
-© 2026 读透（ReadDeep）
-`,
-          xhs_6frame: `{
-  "title": "${latestNote.bookTitle} 读完 1 章我学到了什么",
-  "frames": [
-    { "n": 1, "type": "cover", "text": "读 1 本书 30 天\n我靠这 4 个 AI 角色" },
-    { "n": 2, "type": "hook",  "text": "很多人读书 = 没读\n你缺的是陪练" },
-    { "n": 3, "type": "value", "text": "${ctx}\n${(latestNote.answers || [])[0]?.answer?.slice(0, 50) || '核心要点待补'}" },
-    { "n": 4, "type": "value", "text": "${(latestNote.answers || [])[1]?.answer?.slice(0, 50) || '第二要点待补'}" },
-    { "n": 5, "type": "twist", "text": "你愿意花 1 杯奶茶钱\n让 4 个 AI 陪你读 1 本书吗？" },
-    { "n": 6, "type": "cta",   "text": "评论区扣 1\n领读透书库 50 本" }
-  ]
-}`,
-          mindmap: `# ${latestNote.bookTitle} · 思维导图
-
-## 中心主题
-${latestNote.bookTitle}
-
-## 核心分支
-
-- **第 ${(latestNote.chapter || 0) + 1} 章**
-  - 思考题 1：${(latestNote.answers || [])[0]?.answer?.slice(0, 60) || '待补'}
-  - 思考题 2：${(latestNote.answers || [])[1]?.answer?.slice(0, 60) || '待补'}
-  - 思考题 3：${(latestNote.answers || [])[2]?.answer?.slice(0, 60) || '待补'}
-
-- **3 个金句**
-  - "读书是 AI 时代最有效的增长路径"
-  - "把时间花在不变的事情上"
-  - "不输出不成长"
-
-## Excalidraw SVG
-（待 D5 鲁班出图）
-
----
-（D1 占位 · D4 接 DeepSeek）`,
-          card_share: `# ${latestNote.bookTitle} · 3 张金句卡
-
-## 卡 1（封面）
-> **${latestNote.bookTitle}**
-> 
-> 读完 1 章最大的收获
-
-## 卡 2（核心）
-> "读书是 AI 时代最有效的增长路径。"
-
-## 卡 3（行动）
-> **今天开始读 1 本书**
-> 
-> 30 本公版书免费陪读
-
----
-（D1 占位 · D4 接 DeepSeek）`,
-        }[templateKey];
-
-        currentResult = mockResult;
-        resultContent.textContent = mockResult;
-        resultMeta.innerHTML = `D1 占位 · 模板：${TEMPLATES[templateKey]} · ${ctx}`;
-
-        // 更新笔记草稿
-        latestNote.template = templateKey;
-        latestNote.result = mockResult;
-        App.saveNote(latestNote);
-
-        App.track('note_generate', {
-          template: templateKey,
-          bookId: latestNote.bookId,
-          chapter: latestNote.chapter,
-        });
+          App.track('note_generate', {
+            template: templateKey,
+            action,
+            bookId: latestNote.bookId,
+            chapter: latestNote.chapter,
+            elapsedMs: elapsed,
+          });
+        } catch (e) {
+          console.error('[generate] 失败', e);
+          resultMeta.innerHTML = `❌ 失败：<code>${escapeHtml(e.message || String(e))}</code>`;
+          resultContent.textContent = '';
+          App.track('note_generate_error', {
+            template: templateKey,
+            action,
+            error: e.message,
+          });
+        }
       }
 
       // 4. 复制 / 下载 / 导出
