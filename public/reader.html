@@ -210,7 +210,8 @@
       try {
         const resp = await fetch('/data/books.json');
         const json = await resp.json();
-        allBooks = json.books || [];
+        // 兼容两种格式：{books:[...]} 或直接 [...]
+        allBooks = Array.isArray(json) ? json : (json.books || []);
       } catch (e) {
         console.error('[reader] 加载书库失败', e);
         bookTitleEl.textContent = '书库加载失败';
@@ -222,7 +223,10 @@
         allBooks.forEach(b => {
           const opt = document.createElement('option');
           opt.value = b.id;
-          opt.textContent = `${b.cover || '📚'} ${b.title}`;
+          // cover 可能是 emoji 字符，也可能是图片路径（如 images/covers/xxx.svg）
+          // 只有真正是 emoji（1-4 字符的 emoji）才用，否则 fallback 到 📚
+          const isEmoji = b.cover && b.cover.length <= 4 && !b.cover.includes('/');
+          opt.textContent = `${isEmoji ? b.cover : '📚'} ${b.title}`;
           bookSelectEl.appendChild(opt);
         });
         bookSelectEl.dataset.filled = '1';

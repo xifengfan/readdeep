@@ -24,6 +24,7 @@ const AGENT_NAME_MAP = {
 let currentAgent = 'lead';
 let chatHistory = [];
 let currentBookId = null;
+let currentBookContext = null;  // v2 2026-06-09：提升为模块作用域，sendMessage() 需用
 let isSending = false;
 
 // ========== 启动日志（验证脚本是否真加载）==========
@@ -246,10 +247,18 @@ async function initBookSelection() {
   }
   // 如果内嵌脚本还没填，自己补填（独立入口页直接打开 reader.html 时）
   if (!bookSelect.dataset.filled) {
+    // 等内嵌脚本最多 200ms（内嵌可能还在 await）
+    for (let i = 0; i < 20 && !bookSelect.dataset.filled; i++) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+  if (!bookSelect.dataset.filled) {
     try {
       const r = await fetch('/data/books.json');
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const books = await r.json();
+      const data = await r.json();
+      // 兼容两种格式：{books:[...]} 或直接 [...]
+      const books = Array.isArray(data) ? data : (data.books || []);
       console.log('[reader.js] 独立加载 books.json:', books.length, '本');
       books.forEach(book => {
         const opt = document.createElement('option');

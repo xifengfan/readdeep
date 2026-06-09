@@ -1,6 +1,7 @@
 # Secrets (主公 5 条金句)
 .env
 .env.local
+.dev.vars
 secrets/
 *.token
 *.github_token*
