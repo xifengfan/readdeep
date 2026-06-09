@@ -20,16 +20,19 @@ const MAX_INPUT = 4000;  // 用户原文最长 4000 字
  */
 const PROMPT_BUILDERS = {
   note: (ctx) => `你是「读透笔记工坊」的笔记助手。
-请根据用户提供的原文，生成一份"读透笔记卡"（400-600 字）：
-- 一句话核心观点（15 字以内，加粗）
-- 3 段结构化笔记（每段 100-150 字）
+请根据用户提供的原文，生成一份"读透读书笔记"（**总字数 1500-2500 字**）：
+- 一句话核心观点（30 字以内，加粗）
+- 5 段结构化笔记（每段 250-400 字），段首可加小标题
+- 1 个章节摘要（200 字）
+- 3 个金句提炼（每条含：原文 20-30 字 + 出处 + 30 字感悟）
 - 1 个行动建议（"今天就可以尝试"）
 - 1 个延伸思考问题
 
 【当前书】${ctx.bookContext?.title || '未指定'} · ${ctx.bookContext?.author || '佚名'}
 【难度等级】${ctx.difficulty || '入门'}
 
-风格：克制 + 实用 + 不堆砌名词。
+风格：克制 + 实用 + 不堆砌名词 + 不说教。
+字数控制：总字数 1500-2500 字（中文字符计）。可使用 5 段结构化笔记扩量。
 `,
 
   quote: (ctx) => `你是「金句提炼师」。
@@ -151,7 +154,7 @@ export async function workshopHandler(request, env) {
         { role: 'user', content: input },
       ],
       model: DEFAULT_MODEL,
-      maxTokens: action === 'share' ? 1500 : 1200,
+      maxTokens: action === 'share' ? 2000 : action === 'note' ? 3500 : action === 'quote' ? 1500 : 1200,
       temperature: 0.75,
     });
 

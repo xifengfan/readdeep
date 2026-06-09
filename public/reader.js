@@ -163,12 +163,14 @@ async function sendMessage() {
 
   // 3. 调 /api/chat
   try {
+    const chapter = window.__readerState?.currentChapter ?? 0;
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bookId: currentBookId,
         bookContext: currentBookContext,
+        chapter,
         agent: currentAgent,
         userMessage: text,
         history: chatHistory.slice(0, -1),
@@ -235,50 +237,66 @@ function addSystemMessage(text, type = 'info') {
 
 // ========== 加载书库 + 监听 select 变化 ==========
 async function initBookSelection() {
-  try {
-    const r = await fetch('/data/books.json');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const books = await r.json();
-    console.log('[reader.js] 加载 books.json:', books.length, '本');
-
-    const bookSelect = document.getElementById('book-select');
-    const chapterSelect = document.getElementById('chapter-select');
-    if (!bookSelect) {
-      console.warn('[reader.js] 找不到 #book-select');
+  // v2 (2026-06-09 荀彧反向检查): 避免双填 #book-select
+  // reader.html 内嵌脚本已 fill 下拉，reader.js 只负责挂事件 + 同步 currentBookContext
+  const bookSelect = document.getElementById('book-select');
+  if (!bookSelect) {
+    console.warn('[reader.js] 找不到 #book-select');
+    return;
+  }
+  // 如果内嵌脚本还没填，自己补填（独立入口页直接打开 reader.html 时）
+  if (!bookSelect.dataset.filled) {
+    try {
+      const r = await fetch('/data/books.json');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const books = await r.json();
+      console.log('[reader.js] 独立加载 books.json:', books.length, '本');
+      books.forEach(book => {
+        const opt = document.createElement('option');
+        opt.value = book.id;
+        opt.textContent = book.title;
+        opt.dataset.title = book.title;
+        opt.dataset.author = book.author || '佚名';
+        opt.dataset.summary = book.summary || '';
+        bookSelect.appendChild(opt);
+      });
+      bookSelect.dataset.filled = '1';
+      if (books.length > 0) {
+        bookSelect.value = books[0].id;
+      }
+    } catch (e) {
+      console.error('[reader.js] 独立加载 books.json 失败:', e);
       return;
     }
+  }
 
-    books.forEach(book => {
-      const opt = document.createElement('option');
-      opt.value = book.id;
-      opt.textContent = book.title;
-      opt.dataset.title = book.title;
-      opt.dataset.author = book.author || '佚名';
-      opt.dataset.summary = book.summary || '';
-      bookSelect.appendChild(opt);
-    });
-
-    bookSelect.addEventListener('change', () => {
-      const selected = bookSelect.options[bookSelect.selectedIndex];
-      if (!selected || !selected.value) {
-        currentBookContext = null;
-        currentBookId = null;
-        return;
-      }
-      currentBookId = selected.value;
-      currentBookContext = {
-        title: selected.dataset.title || selected.textContent,
-        author: selected.dataset.author || '佚名',
-        summary: selected.dataset.summary || '',
-      };
-      console.log('[reader.js] 选了书:', currentBookContext);
-    });
-
-    if (books.length > 0) {
-      bookSelect.value = books[0].id;
-      bookSelect.dispatchEvent(new Event('change'));
+  bookSelect.addEventListener('change', () => {
+    const selected = bookSelect.options[bookSelect.selectedIndex];
+    if (!selected || !selected.value) {
+      currentBookContext = null;
+      currentBookId = null;
+      if (window.__readerState) window.__readerState.currentBook = null;
+      return;
     }
-  } catch (e) {
-    console.error('[reader.js] 加载 books.json 失败:', e);
+    currentBookId = selected.value;
+    currentBookContext = {
+      title: selected.dataset.title || selected.textContent,
+      author: selected.dataset.author || '佚名',
+      summary: selected.dataset.summary || '',
+    };
+    console.log('[reader.js] 选了书:', currentBookContext);
+  });
+
+  // 初始化 context（取当前已选书）
+  if (bookSelect.value) {
+    const sel = bookSelect.options[bookSelect.selectedIndex];
+    if (sel && sel.value) {
+      currentBookId = sel.value;
+      currentBookContext = {
+        title: sel.dataset.title || sel.textContent,
+        author: sel.dataset.author || '佚名',
+        summary: sel.dataset.summary || '',
+      };
+    }
   }
 }

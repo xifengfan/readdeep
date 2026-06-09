@@ -223,11 +223,15 @@
       }
 
       /**
-       * 把后端 note 输出包装成 公众号长文 形态
-       * 后端 note 是 400-600 字笔记卡 → 扩展为 1500-2500 字长文（加头部引言 + 章节结构 + 行动建议章节）
+       * v2 · 2026-06-09 荀彧反向检查后整改
+       * 公众号长文：从 parsed 提取金句（如果 note action 返回），不再硬编码
        */
-      function wrapAsWechatArticle(bookCtx, noteReply) {
-        return `# ${bookCtx.title} · 第 ${bookCtx.chapter.replace('第 ', '').replace(' 章', '')} 章 读书笔记
+      function wrapAsWechatArticle(bookCtx, noteReply, parsedQuotes) {
+        const quotes = Array.isArray(parsedQuotes) ? parsedQuotes : [];
+        const quotesBlock = quotes.length > 0
+          ? quotes.map(q => `> **${q.quote || ''}**\n> *—— ${q.source || 'AI 提炼'}*\n> *${q.reflection || ''}*`).join('\n\n')
+          : '> （本章 AI 提炼金句未返回 · 可重试或联系开发者）';
+        return `# ${bookCtx.title} · ${bookCtx.chapter} 读书笔记
 
 > **AI 陪读 · 主公定制版** · 生成时间：${new Date().toLocaleString('zh-CN')}
 
@@ -239,11 +243,9 @@ ${bookCtx.title} 是中国/西方经典中的重要著作。本章聚焦于核�
 
 ${noteReply}
 
-## 三、本章 3 个金句
+## 三、本章金句（AI 提炼）
 
-> "读书是 AI 时代最有效的增长路径。"
-> "把时间花在不变的事情上。"
-> "不输出不成长。"
+${quotesBlock}
 
 ## 四、推荐行动
 
@@ -267,38 +269,35 @@ ${noteReply}
       }
 
       /**
-       * 把后端 note 输出包装成 思维导图（Markdown 树形）
-       * 把 "**核心观点**" + "1./2./3." 列表转成层级
+       * v2 · 2026-06-09 荀彧反向检查后整改
+       * 思维导图：暂未接后端 mindmap action（推到 D3）
+       * 当前直接展示后端 note 输出的 markdown（让用户看到原始内容）
        */
       function wrapAsMindmap(bookCtx, noteReply) {
-        // 简化解析：把笔记按行处理
-        const lines = noteReply.split('\n').filter(l => l.trim());
-        const tree = [`# ${bookCtx.title} · 思维导图`, '', '## 中心主题', bookCtx.title, '', '## 核心分支', ''];
-        let inList = false;
-        let listIdx = 0;
-        for (const ln of lines) {
-          const m = ln.match(/^[-*]\s+(.+)/) || ln.match(/^(\d+)\.\s+(.+)/);
-          if (m) {
-            listIdx++;
-            tree.push(`### 分支 ${listIdx}：${m[1] || m[2]}`);
-            tree.push('');
-            inList = true;
-          } else if (ln.match(/^[#*]+\s/) || ln.startsWith('>')) {
-            tree.push(`> ${ln.replace(/^[#*\s>]+/, '')}`);
-            tree.push('');
-            inList = false;
-          } else if (ln.trim()) {
-            tree.push(`  - ${ln.trim()}`);
-          }
-        }
-        tree.push('');
-        tree.push('---');
-        tree.push('（AI 笔记 → 树形化 · 可粘贴到 Obsidian / Xmind / Whimsical）');
-        return tree.join('\n');
+        return `# ${bookCtx.title} · 思维导图素材
+
+> ⚠️ **D3 待接入**：思维导图新版（专门 tree-structured markdown）正在设计
+> 当前展示后端 note 原始输出 — 可直接复制到 Obsidian / Xmind 手动画
+
+---
+
+${noteReply}
+
+---
+
+### 临时树形化（供粘贴到 Markdown 笔记）
+
+请把上面的要点按层级整理：
+- 中心主题：${bookCtx.title}
+- 一级分支：核心观点 / 论证结构 / 关键术语 / 行动建议
+
+© 2026 读透（ReadDeep）
+`;
       }
 
       /**
-       * 把后端 quote 输出包装成 3 张金句卡片
+       * v2 · 2026-06-09 荀彧反向检查后整改
+       * 卡片分享：从后端 quote 输出的 parsed 取金句，不再硬编码
        */
       function wrapAsCardShare(bookCtx, parsed) {
         const quotes = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
@@ -325,6 +324,39 @@ ${noteReply}
         cards.push('（1:1 卡片可粘贴到「卡片分享」渲染 Skill → 朋友圈/即刻 通用）');
         return cards.join('\n');
       }
+
+      /**
+       * 构造 bookContext
+       */
+      function buildBookContext(note) {
+        return {
+          title: note.bookTitle || '未指定',
+          author: note.bookAuthor || '佚名',
+          chapter: `第 ${(note.chapter || 0) + 1} 章`,
+        };
+      }
+
+      /**
+       * 调后端 /api/workshop
+       */
+      async function callWorkshopApi(action, input, bookContext) {
+        const resp = await fetch('/api/workshop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, input, bookContext, difficulty: '入门' }),
+        });
+        const j = await resp.json();
+        if (!resp.ok || !j.ok) {
+          throw new Error(j.error || `HTTP ${resp.status}`);
+        }
+        return j;
+      }
+
+      /**
+       * v2 · 2026-06-09 荀彧反向检查后整改
+       * 公众号长文：从 parsed 提取金句（如果 note action 返回），不再硬编码
+       * （新版定义在 buildBookContext 上面）
+       */
 
       async function generate(templateKey) {
         if (!latestNote) {
@@ -358,7 +390,15 @@ ${noteReply}
 
           if (templateKey === 'wechat_article') {
             // 包装为 公众号长文（1500-2500 字）
-            displayText = wrapAsWechatArticle(bookContext, apiResp.reply);
+            // 联动：再调一次 quote action 拿金句列表（后台已扩 maxTokens）
+            let parsedQuotes = null;
+            try {
+              const quoteResp = await callWorkshopApi('quote', input, bookContext);
+              parsedQuotes = quoteResp.parsed;
+            } catch (e) {
+              console.warn('[wechat_article] 联动 quote 失败：', e.message);
+            }
+            displayText = wrapAsWechatArticle(bookContext, apiResp.reply, parsedQuotes);
           } else if (templateKey === 'mindmap') {
             // 包装为 思维导图
             displayText = wrapAsMindmap(bookContext, apiResp.reply);

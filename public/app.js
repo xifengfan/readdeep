@@ -184,7 +184,7 @@
     lingdu_ren: (input) => `【领读人·墨黑】\n\n你好，我是领读人。关于"${input.slice(0, 20)}"，让我先帮你梳理一下这段内容的背景与核心脉络。\n\n（D4 阶段将接 DeepSeek API · 走 Vercel Serverless）`,
     sugeladuo: (input) => `【苏格拉底·米黄】\n\n你说"${input.slice(0, 20)}"，我想反问你 3 个问题：\n1. 你怎么知道这是真的？\n2. 它的反面是什么？\n3. 如果它是错的，谁会受益？`,
     huashi: (input) => `【画师·朱砂】\n\n为"${input.slice(0, 20)}"我准备了一张概念图：\n\n   [核心] → [分支 1]\n             → [分支 2]\n   \n（D5 阶段由鲁班出真实 Excalidraw SVG）`,
-    jinjubushou: (input) => `【金句捕手·墨色】\n\n从你提到的内容里，我捕捉到 3 句值得记的：\n\n> "读书是 AI 时代最有效的增长路径。"\n> "把时间花在不变的事情上。"\n> "不输出不成长。"`,
+    jinjubushou: (input) => `【金句捕手·墨色】\n\n从你提到的内容里，我会提炼金句。\n\n（提示：D2 已接 DeepSeek API · reader.js 接管了真 API 调用；如看到此 mock，说明后端 /api/chat 未响应 · 请检查 DEEPSEEK_API_KEY）`,
   };
 
   async function callAgentMock(agentKey, input) {

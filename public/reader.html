@@ -72,11 +72,22 @@
       </div>
     </section>
 
+    <!-- ========== 方案 5 最小版：右侧折叠面板加载章节原文 ========== -->
+    <section id="chapter-content-wrap" class="mb-6 p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50">
+      <details id="chapter-details">
+        <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+          <span>📖</span>
+          <span>本章原文（点击展开 / 折叠）</span>
+        </summary>
+        <article id="chapter-content" class="prose mt-3 text-sm leading-relaxed whitespace-pre-wrap"></article>
+      </details>
+    </section>
+
     <!-- ========== 4 Agent Tab ========== -->
     <section class="mb-6">
       <div class="flex items-center gap-3 mb-4">
         <h2 class="text-lg font-semibold">4 Agent 陪读</h2>
-        <span class="text-xs text-ink-500">（D1 占位 · D5 接 DeepSeek）</span>
+        <span class="text-xs text-ink-500">（D2 · DeepSeek v4-flash）</span>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <button class="agent-tab agent-avatar active" data-agent="lingdu_ren">
@@ -169,6 +180,11 @@
 
   <script src="app.js"></script>
   <script>
+    // ===========================================================
+    // reader.html 内嵌脚本（v2 · 2026-06-09 荀彧反向检查后整改）
+    // 职责：books.json 加载 + 进度条 + 思考题 + Tab 切换 + 去 workshop
+    // 不再负责"发送消息"（由 reader.js 的 sendMessage 接管真 API）
+    // ===========================================================
     document.addEventListener('DOMContentLoaded', async () => {
       App.init();
       App.track('page_view', { page: 'reader' });
@@ -177,7 +193,8 @@
       let currentBook = null;
       let currentChapter = 0;
       let currentAgent = 'lingdu_ren';
-      const chatHistory = []; // [{role:'user'|'agent', text:'', agent:''}]
+      // 暴露给 reader.js 用的 currentBookContext
+      window.__readerState = { currentBook: null, currentChapter: 0, get currentBookContext() { return currentBook ? { title: currentBook.title, author: currentBook.author || '佚名', summary: currentBook.summary || '' } : null; } };
 
       const bookSelectEl = document.getElementById('book-select');
       const chapterSelectEl = document.getElementById('chapter-select');
@@ -185,17 +202,13 @@
       const bookMetaEl = document.getElementById('current-book-meta');
       const progressFillEl = document.getElementById('progress-fill');
       const progressTextEl = document.getElementById('progress-text');
-      const chatStreamEl = document.getElementById('chat-stream');
-      const chatInputEl = document.getElementById('chat-input');
-      const chatSendBtn = document.getElementById('chat-send');
       const currentAgentNameEl = document.getElementById('current-agent-name');
-      const clearChatBtn = document.getElementById('clear-chat');
       const goWorkshopBtn = document.getElementById('go-workshop');
 
-      // 1. 加载书库
+      // 1. 加载书库（绝对路径，避免 reader.js 重复加载）
       let allBooks = [];
       try {
-        const resp = await fetch('data/books.json');
+        const resp = await fetch('/data/books.json');
         const json = await resp.json();
         allBooks = json.books || [];
       } catch (e) {
@@ -204,13 +217,16 @@
         return;
       }
 
-      // 2. 填充下拉
-      allBooks.forEach(b => {
-        const opt = document.createElement('option');
-        opt.value = b.id;
-        opt.textContent = `${b.cover || '📚'} ${b.title}`;
-        bookSelectEl.appendChild(opt);
-      });
+      // 2. 填充下拉（防止 reader.js 也填：加 marker）
+      if (!bookSelectEl.dataset.filled) {
+        allBooks.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = `${b.cover || '📚'} ${b.title}`;
+          bookSelectEl.appendChild(opt);
+        });
+        bookSelectEl.dataset.filled = '1';
+      }
 
       // 3. 处理 ?id=... 入参
       const urlBookId = App.getQueryParam('id');
@@ -230,14 +246,19 @@
 
       chapterSelectEl.addEventListener('change', (e) => {
         currentChapter = parseInt(e.target.value, 10) || 0;
+        window.__readerState.currentChapter = currentChapter;
+        // 通知 reader.js 章节变了
+        if (typeof window.onChapterChange === 'function') window.onChapterChange(currentChapter);
         updateProgress();
-        App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
+        loadChapterContent();
+        if (currentBook) App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
       });
 
       // 5. 加载单本书
       function loadBook(bookId) {
         currentBook = allBooks.find(b => b.id === bookId);
         if (!currentBook) return;
+        window.__readerState.currentBook = currentBook;
         bookTitleEl.textContent = currentBook.title;
         bookMetaEl.textContent = `${currentBook.author || ''} · ${currentBook.category || ''} · 共 ${currentBook.chapters || 1} 章`;
         // 章节下拉
@@ -252,8 +273,35 @@
         // 恢复进度
         const prog = App.getProgress(bookId);
         currentChapter = prog.chapterIndex || 0;
+        window.__readerState.currentChapter = currentChapter;
         if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
         updateProgress();
+        loadChapterContent();
+      }
+
+      // === 方案 5 · 最小版：右侧折叠面板加载章节原文 ===
+      async function loadChapterContent() {
+        const container = document.getElementById('chapter-content');
+        const wrap = document.getElementById('chapter-content-wrap');
+        if (!container || !wrap || !currentBook) return;
+        // 优先用 currentBook.mdChapters[currentChapter]，否则用 books.json 的 mdPath 字段
+        const md = currentBook.mdChapters?.[currentChapter] || currentBook.mdPath;
+        if (!md) {
+          container.innerHTML = '<p class="text-xs text-ink-500">（本书暂无章节正文，可继续陪读对话）</p>';
+          return;
+        }
+        container.innerHTML = '<p class="text-xs text-ink-500">加载中…</p>';
+        try {
+          const r = await fetch(md);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const txt = await r.text();
+          container.textContent = txt;
+          // 自动展开
+          const details = document.getElementById('chapter-details');
+          if (details) details.open = true;
+        } catch (e) {
+          container.innerHTML = `<p class="text-xs text-accent-500">章节加载失败：${e.message}</p>`;
+        }
       }
 
       function updateProgress() {
@@ -283,80 +331,11 @@
         });
       });
 
-      // 7. 发送消息
-      function escapeHtml(s) {
-        return String(s == null ? '' : s)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      }
-
-      function appendBubble(role, text) {
-        const div = document.createElement('div');
-        div.className = `chat-bubble ${role}`;
-        div.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
-        chatStreamEl.appendChild(div);
-        chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
-      }
-
-      function appendThinking() {
-        const div = document.createElement('div');
-        div.className = 'chat-bubble thinking';
-        div.id = 'thinking-bubble';
-        div.textContent = '正在思考…';
-        chatStreamEl.appendChild(div);
-        chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
-        return div;
-      }
-
-      async function send() {
-        const text = chatInputEl.value.trim();
-        if (!text) return;
-        if (!currentBook) { alert('请先选一本书'); return; }
-        if (currentChapter == null || isNaN(currentChapter)) { alert('请先选一个章节'); return; }
-
-        appendBubble('user', text);
-        chatHistory.push({ role: 'user', text, agent: currentAgent });
-        chatInputEl.value = '';
-        chatSendBtn.disabled = true;
-
-        const thinkingEl = appendThinking();
-        const t0 = Date.now();
-        // D1 用 mock，D5 接真 API
-        const res = await App.callAgentMock(currentAgent, text);
-        thinkingEl.remove();
-        const elapsed = Date.now() - t0;
-
-        if (res.ok) {
-          const reply = res.data.reply;
-          appendBubble('agent', reply);
-          chatHistory.push({ role: 'agent', text: reply, agent: currentAgent });
-          App.track('agent_chat', {
-            agent: currentAgent,
-            bookId: currentBook.id,
-            chapter: currentChapter,
-            elapsedMs: elapsed,
-            source: 'mock',
-          });
-        } else {
-          appendBubble('agent', `（出错：${res.message || '请稍后重试'}）`);
-        }
-        chatSendBtn.disabled = false;
-      }
-
-      chatSendBtn.addEventListener('click', send);
-      chatInputEl.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          send();
-        }
-      });
-
-      clearChatBtn.addEventListener('click', () => {
-        chatStreamEl.innerHTML = '';
-        chatHistory.length = 0;
-        appendBubble('agent', `对话已清空。有什么想聊的，发给我。`);
-      });
+      // 7. 发送消息：已由 reader.js 接管（v2 · 2026-06-09）
+      //    - chat-send 按钮 click  → reader.js 的 sendMessage()
+      //    - chat-input Enter      → reader.js 的 sendMessage()
+      //    - 内嵌脚本不再注册 handler，避免双触发
+      //    - chatHistory / appendBubble 由 reader.js 管理
 
       // 8. 去笔记工坊：保存当前章节思考题回答
       goWorkshopBtn.addEventListener('click', () => {
