@@ -522,6 +522,32 @@ body {
   user-select: none;
 }
 
+/* D14.3 修复3：内容类型标签 */
+.history-type-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  margin-left: 6px;
+  border-radius: 3px;
+  background: var(--ink-100);
+  color: var(--ink-700);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+/* D14.3 修复3：默认折叠下的 100 字预览 */
+.history-preview {
+  font-family: var(--font-serif);
+  color: var(--ink-500);
+  line-height: var(--leading-relaxed);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .empty-state {
   font-size: var(--text-sm);
   color: var(--ink-500);
