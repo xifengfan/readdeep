@@ -374,7 +374,7 @@
         const bookOptions = '<option value="">-- 请选择书籍 --</option>' + contextAllBooks.map(b =>
           `<option value="${escapeHtml(b.id)}" ${b.id === contextBookId ? 'selected' : ''}>${escapeHtml(b.title || b.id)}</option>`
         ).join('');
-        contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${bookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${options.join('')}</select> <span class="text-ink-500">· ${escapeHtml(chapterTitle)} ${summaryStatus}</span> · <a href="reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${contextChapter}" class="ml-1 px-2 py-1 text-xs rounded border border-ink-300 hover:border-ink-900">📖 返回陪读</a>`;
+        contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${bookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${options.join('')}</select> <span class="text-ink-500">· ${escapeHtml(chapterTitle)} ${summaryStatus}</span> · <a href="reader.html?bookId=${encodeURIComponent(contextBookId)}&chapter=${contextChapter}" class="ml-1 px-2 py-1 text-xs rounded border border-ink-300 hover:border-ink-900">📖 返回陪读</a>`;
         // D8-2 v3.4 fix-17: 抽函数复用（让"未关联态"也能绑下拉）
         _bindBookChapterSelectors();
         // 加载章节原文预览
@@ -706,7 +706,7 @@
             return;
           }
           const ch = contextChapter ?? 0;
-          window.location.href = `reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${ch}`;
+          window.location.href = `reader.html?bookId=${encodeURIComponent(contextBookId)}&chapter=${ch}`;
         });
       }
 
@@ -1130,7 +1130,7 @@ ${noteReply}
         if (!_summary) {
           showToast?.('💡 请先去陪读室生成小结（与 4 角色各聊 1 轮）', 'warn');
           setTimeout(() => {
-            location.href = `reader.html?id=${encodeURIComponent(_bookId)}&chapter=${_chapter}`;
+            location.href = `reader.html?bookId=${encodeURIComponent(_bookId)}&chapter=${_chapter}`;
           }, 1200);
           return;
         }
