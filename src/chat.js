@@ -7,17 +7,27 @@
 
 import { callDeepSeek, DEFAULT_MODEL } from './lib/deepseek.js';
 import { AGENT_PROMPTS, AGENT_ROUTER, AGENT_LIST } from './lib/agents.js';
+import { getChapterTitle } from './lib/chapters.js';
 
 const MAX_HISTORY = 10;
 
-function buildSystemPrompt(agent, bookContext) {
+function buildSystemPrompt(agent, bookContext, bookId, chapter) {
   const base = AGENT_PROMPTS[agent] || AGENT_PROMPTS.lead;
+  // 章节上下文注入（2026-06-10 吕玲绮）：让 4 Agent 知道"我在第几章"
+  // 优先用显式 bookId+chapter；否则尝试从 bookContext 兜底
+  const effectiveBookId = bookId || bookContext?.bookId || '';
+  const effectiveChapter = Number.isInteger(chapter)
+    ? chapter
+    : (Number.isInteger(bookContext?.chapter) ? bookContext.chapter : 0);
+  const chapterBlock = (effectiveBookId !== '' || Number.isInteger(chapter) || Number.isInteger(bookContext?.chapter))
+    ? `\n【当前章节】${getChapterTitle(effectiveBookId, effectiveChapter)}\n`
+    : '';
   const bookBlock = bookContext
     ? `\n\n【当前书】\n书名：${bookContext.title}\n作者：${bookContext.author}\n简介：${bookContext.summary || '（无）'}\n`
     : '';
   // P1-B 修复（2026-06-09 吕玲绮）：主公本章思考题答案 → 让 4 Agent 能基于主公答案追问
   const thinkingBlock = buildThinkingBlock(bookContext);
-  return base + bookBlock + thinkingBlock;
+  return base + chapterBlock + bookBlock + thinkingBlock;
 }
 
 function buildThinkingBlock(bookContext) {
@@ -66,7 +76,7 @@ export async function chatHandler(request, env) {
     return json({ ok: false, code: 'BAD_JSON', error: '请求体不是合法 JSON' }, 400);
   }
 
-  const { bookId, agent = 'lead', userMessage, history = [], bookContext = null } = body;
+  const { bookId, agent = 'lead', userMessage, history = [], bookContext = null, chapter = null } = body;
 
   if (!userMessage || typeof userMessage !== 'string') {
     return json({ ok: false, code: 'EMPTY_MESSAGE', error: 'userMessage 不能为空' }, 400);
@@ -81,7 +91,7 @@ export async function chatHandler(request, env) {
     }, 400);
   }
 
-  const systemPrompt = buildSystemPrompt(agentKey, bookContext);
+  const systemPrompt = buildSystemPrompt(agentKey, bookContext, bookId, chapter);
   const recentHistory = Array.isArray(history) ? history.slice(-MAX_HISTORY) : [];
   const messages = [
     { role: 'system', content: systemPrompt },

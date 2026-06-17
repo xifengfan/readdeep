@@ -43,8 +43,8 @@
     }
   }
   function lsSet(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); }
-    catch (e) { console.warn('[lsSet] 写入失败', key, e); }
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { console.warn('[lsSet] 写入失败', key, e); return false; }
   }
 
   // ============================================================
@@ -98,7 +98,10 @@
     note.id = note.id || ('note_' + Date.now());
     note.createdAt = note.createdAt || new Date().toISOString();
     all.push(note);
-    lsSet(KEY_NOTES, all);
+    const _ok = lsSet(KEY_NOTES, all);
+    if (!_ok && typeof window !== 'undefined' && window.showToast) {
+      window.showToast('⚠️ localStorage 写入失败（隐私模式？quota 满？）', 'error');
+    }
     return note;
   }
 

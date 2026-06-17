@@ -4,6 +4,10 @@
 // 用途：4 Agent Tab 切换 + 调 /api/chat + 历史滚动
 // 模型：deepseek-v4-flash（后端默认）
 // v3.0 - 2026-06-08 15:43 全面修复（P1 教训 5 第 3 次重演）
+// v3.1 - 2026-06-10 P2-I 修复：chatHistory 走 localStorage（key=readdeep.chatHistory.{bookId}）
+//                 - 存储：全量带 agent 字段（4 Agent 共享一数组）
+//                 - 渲染/发请求：按 currentAgent 过滤
+//                 - 切换 agent 不清历史；切书 / 刷新 保留历史
 // ================================================
 
 // pinyin → agent id 映射（兼容旧 reader.html 的 data-agent）
@@ -21,14 +25,249 @@ const AGENT_NAME_MAP = {
   quote: '金句捕手',
 };
 
+// D7-1：首次欢迎气泡（localStorage 持久化）
+const WELCOMED_AGENTS_KEY = 'readdeep.welcomedAgents';
+function loadWelcomedAgents() {
+  try { return JSON.parse(localStorage.getItem(WELCOMED_AGENTS_KEY) || '{}'); } catch { return {}; }
+}
+function saveWelcomedAgents(obj) {
+  localStorage.setItem(WELCOMED_AGENTS_KEY, JSON.stringify(obj));
+}
+
+// D7-1：4 Agent 欢迎语（硬编码 · 主公调性 · 不端着）
+const AGENT_WELCOMES = {
+  lead: `📖 我是领读人，帮你拆章节结构和抓重点。
+我适合问你："这一章讲什么？""作者想表达什么？"
+回我一条具体问题试试。`,
+  socrates: `🤔 我是苏格拉底，专门扎心追问。
+我会说"反过来呢？""你这个假设真的对吗？"
+别怕被我怼，我怼你是为了让你想清楚。`,
+  painter: `🎨 我是画师，把抽象概念翻译成画面。
+我会给你"做饭""带娃""通勤"的类比 + 方块图。
+问"举个例子"或"画个图"我就在。`,
+  quote: `✍️ 我是金句捕手，帮你挑一句今天能贴墙的话。
+我会说"这句跟你的关系是 XX"，然后给个场景卡。
+说"挑一句"或"给个场景卡"我就在。`,
+};
+
 let currentAgent = 'lead';
+// v3.1 P2-I：chatHistory 改为"全量 + agent 字段"；渲染/发请求按 currentAgent 过滤
+// 切 agent 不再清空（保留 4 Agent 各自的对话）；切书由 bookSelect change 处理
 let chatHistory = [];
 let currentBookId = null;
 let currentBookContext = null;  // v2 2026-06-09：提升为模块作用域，sendMessage() 需用
 let isSending = false;
 
+// ========== P2-I · localStorage 持久化 ==========
+// 存储：全量 [{ role, agent?, content, ts }]
+// 渲染/发请求时：按 currentAgent 过滤出该 agent 的子集
+const CHAT_HISTORY_KEY = (bookId) => `readdeep.chatHistory.${bookId}`;
+
+function loadChatHistory(bookId) {
+  if (!bookId) return [];
+  try {
+    const raw = localStorage.getItem(CHAT_HISTORY_KEY(bookId));
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    console.warn('[reader.js] 读聊天历史失败', e);
+    return [];
+  }
+}
+
+function saveChatHistory(bookId, history) {
+  if (!bookId) return;
+  try {
+    // 截断：单书最多保留 200 条（防 localStorage 爆掉）
+    const arr = (history || []).slice(-200);
+    localStorage.setItem(CHAT_HISTORY_KEY(bookId), JSON.stringify(arr));
+  } catch (e) {
+    console.warn('[reader.js] 存聊天历史失败', e);
+  }
+}
+
+// 取"当前 agent 的对话子集"（用于渲染 + 发请求）
+function chatHistoryForAgent(agent) {
+  return chatHistory.filter(m => {
+    if (agent === 'lead')   return m.agent === 'lead'   || (!m.agent && m.role !== 'user');
+    if (agent === 'socrates') return m.agent === 'socrates';
+    if (agent === 'painter')  return m.agent === 'painter';
+    if (agent === 'quote')    return m.agent === 'quote';
+    return true;
+  });
+}
+
 // ========== 启动日志（验证脚本是否真加载）==========
-console.log('%c[reader.js] 已加载 · v3.0 · 2026-06-08', 'color: #c1272d; font-weight: bold;');
+console.log('%c[reader.js] 已加载 · v3.2 · 2026-06-16（+ D12.13-A 动态思考题）', 'color: #c1272d; font-weight: bold;');
+
+// ========== D12.13-A · 动态生成思考题 ==========
+// 调用 /api/thinking-questions，渲染到 #question-list
+// - 成功后：替换 #question-list 内的卡片
+// - 失败时：fallback 到 3 个默认问题（thinking.js 兜底）
+// - 重入保护：避免重复触发（按钮 disabled + 模块级 isLoadingQuestions）
+let isLoadingQuestions = false;
+
+const FALLBACK_QUESTIONS = [
+  { qIndex: 1, qText: '这一章的核心主张是什么？你能用 1 句话概括吗？' },
+  { qIndex: 2, qText: '作者为什么这样论证？如果是你，会怎么写？' },
+  { qIndex: 3, qText: '这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？' },
+];
+
+async function loadDynamicQuestions(bookId, chapter) {
+  if (isLoadingQuestions) {
+    console.log('[reader.js] 思考题正在生成中，跳过重复请求');
+    return;
+  }
+  if (!bookId) {
+    console.warn('[reader.js] loadDynamicQuestions: bookId 为空');
+    return;
+  }
+
+  isLoadingQuestions = true;
+
+  // UI：显示加载占位 + 禁用重生按钮
+  const listEl = document.getElementById('question-list');
+  const loadingEl = document.getElementById('questions-loading');
+  const reloadBtn = document.getElementById('reload-questions');
+  const metaEl = document.getElementById('questions-meta');
+  if (reloadBtn) reloadBtn.disabled = true;
+  if (metaEl) metaEl.textContent = '🌀 生成中…';
+
+  // 清掉旧的 question-card（保留 template）
+  if (listEl) {
+    listEl.querySelectorAll('.question-card:not(.hidden)').forEach(el => el.remove());
+  }
+  if (loadingEl) loadingEl.style.display = '';
+
+  try {
+    // 1. 取对话历史：全量 → 转给后端（后端会自己 slice -6）
+    const history = (chatHistory || []).map(m => ({
+      role: m.role,
+      content: String(m.content || '').slice(0, 300),
+    }));
+
+    // 2. 取书 + 章节标题（供 prompt 用）
+    const currentBook = window.__readerState?.currentBook;
+    const bookTitle = currentBook?.title || '当前书';
+    // 章节标题：默认「第 N 章」（后端 getChapterTitle 用同样 fallback）
+    const chapterTitle = `第 ${(Number(chapter) || 0) + 1} 章`;
+
+    // 3. 调 /api/thinking-questions
+    const resp = await fetch('/api/thinking-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookId, chapter, bookTitle, chapterTitle, history }),
+    });
+    const data = await resp.json();
+
+    // 4. 拿到题目
+    let questions = [];
+    if (data && data.ok && Array.isArray(data.questions) && data.questions.length > 0) {
+      questions = data.questions;
+    } else {
+      console.warn('[reader.js] 思考题接口未返回有效数据，fallback', data);
+      questions = FALLBACK_QUESTIONS;
+    }
+
+    // 5. 渲染：克隆 template
+    renderQuestionCards(questions);
+
+    // 6. 恢复已存的答案（用模块作用域版，不依赖内嵌脚本）
+    _restoreAnswersFromStorage(bookId, chapter);
+
+    // 7. meta 更新
+    if (metaEl) {
+      metaEl.textContent = data?.fallback
+        ? `${questions.length} 道 · 默认版（生成失败，已 fallback）`
+        : `${questions.length} 道 · 答完生成笔记`;
+    }
+  } catch (e) {
+    console.error('[reader.js] loadDynamicQuestions 网络错误', e);
+    renderQuestionCards(FALLBACK_QUESTIONS);
+    if (metaEl) metaEl.textContent = '⚠️ 生成失败，已用默认题';
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (reloadBtn) reloadBtn.disabled = false;
+    isLoadingQuestions = false;
+  }
+}
+
+/**
+ * 渲染 question-card 列表（基于 template 克隆）
+ */
+function renderQuestionCards(questions) {
+  const listEl = document.getElementById('question-list');
+  if (!listEl) return;
+  // 删旧卡片
+  listEl.querySelectorAll('.question-card:not(.hidden)').forEach(el => el.remove());
+  const tpl = document.getElementById('question-card-template');
+  if (!tpl) {
+    console.error('[reader.js] 找不到 #question-card-template');
+    return;
+  }
+  questions.forEach((q, i) => {
+    const idx = Number.isInteger(q.qIndex) ? q.qIndex : (i + 1);
+    const text = String(q.qText || '').trim();
+    if (!text) return;
+    const card = tpl.cloneNode(true);
+    card.classList.remove('hidden');
+    card.removeAttribute('id');
+    card.dataset.qIndex = String(idx);
+    const numEl = card.querySelector('.q-num');
+    if (numEl) numEl.textContent = String(idx);
+    const textEl = card.querySelector('[data-q-text]');
+    if (textEl) textEl.textContent = text;
+    listEl.appendChild(card);
+  });
+  // 重新挂 answer-input 的 input 监听器（用内嵌脚本的 saveThinkingAnswers）
+  if (typeof window.__readerSaveAnswersInit === 'function') {
+    try { window.__readerSaveAnswersInit(); } catch (_) {}
+  }
+}
+
+/**
+ * 兜底：直接读 localStorage 恢复答案
+ */
+function _restoreAnswersFromStorage(bookId, chapter) {
+  try {
+    const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
+    if (!raw) return;
+    const all = JSON.parse(raw);
+    const ch = all[chapter] || {};
+    document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
+      const idx = Number(card.dataset.qIndex);
+      const item = ch[idx];
+      const ta = card.querySelector('.answer-input');
+      if (ta) ta.value = (item && item.answer) || '';
+    });
+  } catch (e) {
+    console.warn('[reader.js] _restoreAnswersFromStorage 失败', e);
+  }
+}
+
+// 暴露给 reader.html 内嵌脚本调用（章节切换 / 重生按钮）
+window.__p2ReloadQuestions = function () {
+  const ch = window.__readerState?.currentChapter;
+  const bookId = currentBookId || window.__readerState?.currentBook?.id;
+  if (!bookId || ch == null) {
+    console.log('[reader.js] 跳过重生思考题：bookId/chapter 缺失');
+    return;
+  }
+  loadDynamicQuestions(bookId, ch);
+};
+
+// 绑定重生按钮
+function initReloadQuestionsButton() {
+  const btn = document.getElementById('reload-questions');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    if (typeof App !== 'undefined' && App.track) {
+      App.track('questions_reload', { bookId: currentBookId });
+    }
+    window.__p2ReloadQuestions();
+  });
+}
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
@@ -40,6 +279,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   currentBookId = params.get('book') || null;
   if (currentBookId) {
     console.log('[reader.js] 当前 bookId:', currentBookId);
+  }
+
+  // 1.1 P2-I 修复（2026-06-10 吕玲绮）：从 localStorage 加载聊天历史
+  //  - bookId 已知时立即读，刷新也不丢
+  //  - 渲染由 switchAgent 触发（init 末尾调用）
+  if (currentBookId) {
+    chatHistory = loadChatHistory(currentBookId);
+    console.log(`[reader.js] 从 localStorage 读 ${chatHistory.length} 条历史`);
   }
 
   // 1.5 加载书库 + 监听 select 变化
@@ -79,10 +326,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 5. 绑定清空按钮
+  // v3.1 P2-I：只清"当前 agent"的历史，其他 agent 保留；清完立即 save
   const clearBtn = document.getElementById('clear-chat');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
-      chatHistory = [];
+      chatHistory = chatHistory.filter(m => m.agent !== currentAgent);
+      saveChatHistory(currentBookId, chatHistory);
       renderChat();
     });
   }
@@ -90,6 +339,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. 默认激活第一个 agent
   switchAgent('lead');
   
+  // D7-1：试试问快捷按钮
+  initTryAskButtons();
+
+  // D12.13-A：绑定重生按钮
+  initReloadQuestionsButton();
+
+  // D12.13-A：首次触发思考题生成（等内嵌脚本的 loadBook/loadChapter 跑完）
+  //   - 给内嵌脚本 200ms（通常足够：loadBook 是同步的，loadChapterContent 是异步）
+  //   - 失败时 fallback 由 thinking.js 处理
+  setTimeout(() => window.__p2ReloadQuestions(), 250);
+
   console.log('[reader.js] 初始化完成');
 });
 
@@ -107,25 +367,47 @@ async function loadAgentList() {
 }
 
 // ========== 切换 Agent ==========
+// v3.1 P2-I：切换 agent 不再清空 chatHistory（共享全量 + 渲染时按 agent 过滤）
 function switchAgent(agent) {
   if (!AGENT_NAME_MAP[agent]) {
     console.warn('[reader.js] 未知 agent:', agent);
     return;
   }
   currentAgent = agent;
-  chatHistory = [];
   const nameEl = document.getElementById('current-agent-name');
   if (nameEl) nameEl.textContent = AGENT_NAME_MAP[agent];
 
-  // 更新 Tab 高亮
+  // 更新 Tab 高亮 + aria-selected
   document.querySelectorAll('[data-agent]').forEach(tab => {
     const raw = tab.dataset.agent;
     const mapped = AGENT_PINYIN_MAP[raw] || raw;
-    tab.classList.toggle('active', mapped === agent);
+    const isActive = mapped === agent;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', String(isActive));
   });
 
   renderChat();
-  addSystemMessage(`已切换到「${AGENT_NAME_MAP[agent]}」，开始陪读吧～`);
+
+  // D7-1：首次切某 agent 触发欢迎气泡（取代原来的 addSystemMessage）
+  const welcomed = loadWelcomedAgents();
+  if (!welcomed[agent]) {
+    const welcomeId = 'welcome-' + Date.now();
+    appendBubble('agent', AGENT_WELCOMES[agent] || `我是${AGENT_NAME_MAP[agent]}～`, welcomeId);
+    // 阶段 3：欢迎气泡加 .welcome class 触发滑入动画
+    const welcomeEl = document.getElementById(welcomeId);
+    if (welcomeEl) welcomeEl.classList.add('welcome');
+    welcomed[agent] = true;
+    saveWelcomedAgents(welcomed);
+  }
+
+  // 阶段 3：agent 切换转场（opacity 微动）
+  const stream = document.getElementById('chat-stream');
+  if (stream) {
+    stream.style.opacity = '0.7';
+    requestAnimationFrame(() => {
+      stream.style.opacity = '1';
+    });
+  }
 }
 
 // ========== 发送消息 ==========
@@ -154,7 +436,9 @@ async function sendMessage() {
   if (sendBtn) sendBtn.disabled = true;
 
   // 1. 渲染用户消息
-  chatHistory.push({ role: 'user', content: text });
+  // v3.1 P2-I：用户消息也带 agent 字段（虽然 role=user，但便于 sendTime / 一致性）
+  chatHistory.push({ role: 'user', agent: currentAgent, content: text, ts: Date.now() });
+  saveChatHistory(currentBookId, chatHistory);
   renderChat();
   input.value = '';
 
@@ -170,6 +454,11 @@ async function sendMessage() {
     const bookContextWithAnswers = currentBookContext
       ? { ...currentBookContext, thinkingAnswers }
       : { thinkingAnswers };
+    // v3.1 P2-I：发请求时只发"当前 agent"的历史（不是全量）
+    const myHistory = chatHistoryForAgent(currentAgent).map(m => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      content: m.content,
+    }));
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -179,7 +468,7 @@ async function sendMessage() {
         chapter,
         agent: currentAgent,
         userMessage: text,
-        history: chatHistory.slice(0, -1),
+        history: myHistory.slice(0, -1),  // 去掉刚 push 的 user，等会儿 LLM 自己 echo
       }),
     });
     const data = await r.json();
@@ -190,7 +479,9 @@ async function sendMessage() {
 
     if (data.ok) {
       console.log('[reader.js] 收到回复', data.elapsedMs + 'ms', data.usage);
-      chatHistory.push({ role: 'assistant', content: data.reply });
+      // v3.1 P2-I：reply 消息带 agent 字段，便于 4 Agent 历史隔离
+      chatHistory.push({ role: 'assistant', agent: currentAgent, content: data.reply, ts: Date.now() });
+      saveChatHistory(currentBookId, chatHistory);
       renderChat();
     } else {
       const errMsg = `[${data.code || 'ERROR'}] ${data.error || '未知错误'}`;
@@ -209,11 +500,22 @@ async function sendMessage() {
 }
 
 // ========== 渲染 ==========
+// v3.1 P2-I：只渲染"当前 agent"的对话（其他 agent 切回来看得到）
 function renderChat() {
   const stream = document.getElementById('chat-stream');
   if (!stream) return;
   stream.innerHTML = '';
-  chatHistory.forEach(msg => {
+  const myMsgs = chatHistoryForAgent(currentAgent);
+  if (myMsgs.length === 0) {
+    // 首次进入该 agent：给个欢迎气泡
+    const welcome = AGENT_NAME_MAP[currentAgent] || 'AI';
+    const div = document.createElement('div');
+    div.className = 'chat-bubble agent';
+    div.innerHTML = `你好！我是 <b>${welcome}</b>，选好书和章节后，把你的疑问或想讨论的内容发给我。`;
+    stream.appendChild(div);
+    return;
+  }
+  myMsgs.forEach(msg => {
     appendBubble(msg.role === 'user' ? 'user' : 'agent', msg.content);
   });
   stream.scrollTop = stream.scrollHeight;
@@ -311,9 +613,19 @@ async function initBookSelection() {
       currentBookContext = null;
       currentBookId = null;
       if (window.__readerState) window.__readerState.currentBook = null;
+      // v3.1 P2-I：选"未指定"时清空当前 chatHistory（不写盘）
+      chatHistory = [];
+      renderChat();
       return;
     }
-    currentBookId = selected.value;
+    const newBookId = selected.value;
+    // v3.1 P2-I：切书时如果 bookId 变了，切换 localStorage key
+    if (newBookId !== currentBookId) {
+      currentBookId = newBookId;
+      chatHistory = loadChatHistory(currentBookId);
+      console.log(`[reader.js] 切书 → ${currentBookId}，载入 ${chatHistory.length} 条历史`);
+      renderChat();
+    }
     currentBookContext = {
       title: selected.dataset.title || selected.textContent,
       author: selected.dataset.author || '佚名',
@@ -326,7 +638,13 @@ async function initBookSelection() {
   if (bookSelect.value) {
     const sel = bookSelect.options[bookSelect.selectedIndex];
     if (sel && sel.value) {
-      currentBookId = sel.value;
+      // v3.1 P2-I：bookSelect 初始值时的 bookId 取 sel.value（覆盖 URL hash 的值）
+      //   真实 bookId 来自 reader.html 内嵌脚本 ?id=... 处理后的下拉
+      if (sel.value !== currentBookId) {
+        currentBookId = sel.value;
+        chatHistory = loadChatHistory(currentBookId);
+        console.log(`[reader.js] 初始 bookId=${currentBookId}，载入 ${chatHistory.length} 条历史`);
+      }
       currentBookContext = {
         title: sel.dataset.title || sel.textContent,
         author: sel.dataset.author || '佚名',
@@ -334,4 +652,46 @@ async function initBookSelection() {
       };
     }
   }
+
+  // v3.1 P2-I 兼容内嵌脚本 ?id=...：如果内嵌脚本已设过 currentBook，以它为准
+  // 内嵌脚本的 loadBook() 会设 window.__readerState.currentBook.id 但不触发 change 事件
+  // 我们的 init 跑在内嵌脚本前/后不确定，统一在这里同步
+  const stateBookId = window.__readerState?.currentBook?.id;
+  if (stateBookId && stateBookId !== currentBookId) {
+    currentBookId = stateBookId;
+    chatHistory = loadChatHistory(currentBookId);
+    console.log(`[reader.js] 跟随内嵌脚本 ?id=... 同步到 ${currentBookId}，载入 ${chatHistory.length} 条历史`);
+  }
+}
+
+// P2 · 2026-06-10 主公 dogfooding 修复：切章节时清空 chatHistory（仅当前 agent）
+// 暴露给 reader.html 的 chapterSelectEl change handler 调用
+// - 根因：原 chatHistory 按 bookId 隔离但 **不按 chapter 隔离**——切章节后 LLM 看到之前章节对话被误导
+// - 修复：切章节时清掉当前 agent 的历史（其他 3 个 agent 保留）
+// - 立即 save 到 localStorage，下次切回不会复活
+window.__p2ClearChatForCurrentAgent = function () {
+  if (!currentBookId) return;
+  chatHistory = chatHistory.filter(m => m.agent !== currentAgent);
+  saveChatHistory(currentBookId, chatHistory);
+  renderChat();
+  console.log(`[reader.js] 切章节清空 ${currentAgent} 历史 (bookId=${currentBookId}, 剩 ${chatHistory.length} 条)`);
+};
+
+// D7-1/D7-2 v2：试试问快捷按钮 — 点击后填到输入框 + focus（不自动发送）
+// v2：试试问已移出 agent-card button（sibling），stopPropagation 无害 NOP
+function initTryAskButtons() {
+  document.querySelectorAll('.try-ask-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation(); // 不触发父按钮（v2 已是 sibling · 无害保留）
+      const askText = btn.dataset.ask;
+      const input = document.getElementById('chat-input');
+      if (input && askText) {
+        input.value = askText;
+        input.focus();
+        // 阶段 3：输入框脉冲动画
+        input.classList.add('chat-input-pulse');
+        setTimeout(() => input.classList.remove('chat-input-pulse'), 300);
+      }
+    });
+  });
 }

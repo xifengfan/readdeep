@@ -3,9 +3,25 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
-# 静态资源长缓存（图片 + 数据）
+# v4-2050: HTML 永远拿最新版（D12.15 主公反馈切页面要强制刷新）
+/index.html
+  Cache-Control: no-store
+/library.html
+  Cache-Control: no-store
+/reader.html
+  Cache-Control: no-store
+/workshop.html
+  Cache-Control: no-store
+/book.html
+  Cache-Control: no-store
+
+# 静态资源长期缓存
 /images/
   Cache-Control: public, max-age=31536000, immutable
-
 /data/
   Cache-Control: public, max-age=300
+
+# SW 文件 max-age=0
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+  Service-Worker-Allowed: /

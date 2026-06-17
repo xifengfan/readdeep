@@ -12,6 +12,9 @@
 import { chatHandler } from './chat.js';
 import { agentsHandler } from './agents.js';
 import { workshopHandler } from './workshop.js';
+import { renderCardHandler } from './render-card.js';
+import { thinkingHandler } from './thinking.js';
+import { WorkshopTaskDO } from './queue.js';
 
 // 静态资源兜底
 const STATIC_TYPES = {
@@ -28,11 +31,14 @@ const STATIC_TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+// D8-2 · 暴露 DO 类（wrangler.toml 已声明 binding=GENERATION_QUEUE）
+export { WorkshopTaskDO };
+
 export default {
   /**
    * Worker fetch 入口
    * @param {Request} request
-   * @param {object} env - Cloudflare bindings (DEEPSEEK_API_KEY, ASSETS)
+   * @param {object} env - Cloudflare bindings (DEEPSEEK_API_KEY, ASSETS, GENERATION_QUEUE)
    * @param {object} ctx
    */
   async fetch(request, env, ctx) {
@@ -55,6 +61,18 @@ export default {
     }
     if (pathname === '/api/workshop') {
       return handleApi(workshopHandler, request, env);
+    }
+    // D8-2 · 异步任务查状态（前端轮询用）
+    // 路径：/api/workshop/status?taskId=xxx
+    if (pathname === '/api/workshop/status') {
+      return handleWorkshopStatus(request, env);
+    }
+    if (pathname === '/api/render-card') {
+      return handleApi(renderCardHandler, request, env);
+    }
+    // D12.13-A · 动态思考题生成
+    if (pathname === '/api/thinking-questions') {
+      return handleApi(thinkingHandler, request, env);
     }
     if (false && pathname === '/api/debug') {
       // 临时调试：返回 import 状态
@@ -85,10 +103,29 @@ export default {
 
     // 静态资源：用 Workers Assets (env.ASSETS) · 但 /api/ 路径必须走 handleApi
     if (env.ASSETS && !pathname.startsWith('/api/')) {
+      console.log('[v4-2050] asset request: ' + pathname);
       try {
-        // 尝试原路径
-        const asset = await env.ASSETS.fetch(request);
+        // v4-2050: 直接拼 .html 后缀，绕开 assets binding 的 SPA 307 redirect
+        // 这样我们的 overrideHTMLCacheControl 能真正控制响应头
+        let asset;
+        const p = pathname.split('?')[0];
+        if (p === '/' || htmlRoutes.has(p + '.html')) {
+          const realPath = p === '/' ? '/index.html' : p + '.html';
+          const realRequest = new Request(
+            new URL(realPath + (request.url.includes('?') ? request.url.substring(request.url.indexOf('?')) : ''), request.url),
+            request
+          );
+          asset = await env.ASSETS.fetch(realRequest);
+        } else {
+          asset = await env.ASSETS.fetch(request);
+        }
+        console.log('[v4-2050] asset response: ' + pathname + ' status=' + (asset ? asset.status : 'null'));
         if (asset && asset.status !== 404) {
+          // v4-2050: HTML 永远拿最新版（D12.15 主公反馈切页面要强制刷新）
+          if (isHTMLPath(pathname)) {
+            console.log('[v4-2050] HIT override for: ' + pathname);
+            return overrideHTMLCacheControl(asset);
+          }
           return asset;
         }
         // SPA fallback 到 index.html
@@ -96,7 +133,11 @@ export default {
         if (fallback && fallback.status === 200) {
           return new Response(fallback.body, {
             status: 200,
-            headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders() },
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-store',  // v4-2050: SPA fallback HTML 也 no-store
+              ...corsHeaders(),
+            },
           });
         }
       } catch (e) {
@@ -116,6 +157,31 @@ export default {
     });
   },
 };
+
+/**
+ * D8-2 · 异步任务状态查询
+ * 前端 GET /api/workshop/status?taskId=xxx → 转给对应 DO 实例
+ */
+async function handleWorkshopStatus(request, env) {
+  const url = new URL(request.url);
+  const taskId = url.searchParams.get('taskId');
+  if (!taskId) {
+    return new Response(JSON.stringify({ ok: false, code: 'MISSING_TASK_ID', error: 'taskId 不能为空' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders() },
+    });
+  }
+  if (!env.GENERATION_QUEUE) {
+    return new Response(JSON.stringify({ ok: false, code: 'NO_DO_BINDING', error: 'GENERATION_QUEUE DO 未配置' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders() },
+    });
+  }
+  // 用 taskId 作为 DO name（每个任务一个 DO 实例）
+  const id = env.GENERATION_QUEUE.idFromName(taskId);
+  const stub = env.GENERATION_QUEUE.get(id);
+  return stub.fetch(new Request('https://do/status', { method: 'GET' }));
+}
 
 async function handleApi(handler, request, env) {
   try {
@@ -148,4 +214,31 @@ function corsHeaders() {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
+}
+
+// v4-2050: HTML 路径识别
+const htmlRoutes = new Set(['/index.html', '/library.html', '/reader.html', '/book.html', '/workshop.html']);
+function isHTMLPath(pathname) {
+  if (!pathname) return false;
+  const p = pathname.split('?')[0];
+  return (
+    p === '/' ||
+    p.endsWith('.html') ||
+    p.endsWith('.htm') ||
+    htmlRoutes.has(p)
+  );
+}
+
+// v4-2050: 覆盖 HTML 响应头，强制 no-store
+function overrideHTMLCacheControl(response) {
+  const newHeaders = new Headers(response.headers);
+  newHeaders.set('Cache-Control', 'no-store');
+  newHeaders.set('Pragma', 'no-cache');
+  newHeaders.set('X-P2-Override', 'no-store-v4');  // 调试标志
+  console.log('[v4-2050] HTML cache override: ' + response.headers.get('Cache-Control') + ' -> no-store');
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
 }

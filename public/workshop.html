@@ -2,11 +2,75 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>笔记工坊 · 读透（ReadDeep）</title>
   <meta name="description" content="4 种模板 · 1 键生成公众号 / 小红书 / 思维导图 / 卡片分享。" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- B1 · 小红书 6 帧 .zip 打包用（CDN · 3.x · gzip 后约 30KB） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+  <!-- 设计令牌（郭嘉 v1）· 在 style.css 前加载 -->
+  <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <!-- P2-H · 流式光标闪烁（D6 下午） -->
+  <style>
+    @keyframes blink-cursor {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0; }
+    }
+    .streaming #result-content::after,
+    pre.streaming::after {
+      content: '';
+      display: inline-block;
+      width: 2px;
+      height: 1.1em;
+      background: currentColor;
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink-cursor 1s step-end infinite;
+    }
+    /* D12.13-C · 从对话生成想法笔记（一键按钮） */
+    .auto-generate-bar {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+      border: 1px dashed #f59e0b;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .auto-generate-btn {
+      padding: 0.5rem 1rem;
+      background: #c1272d;
+      color: #fafaf7;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: none;
+    }
+    .auto-generate-btn:hover:not(:disabled) {
+      background: #a11f25;
+    }
+    .auto-generate-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .auto-generate-hint {
+      font-size: 0.75rem;
+      color: #737373;
+      flex: 1;
+      min-width: 0;
+    }
+  </style>
   <script>
     tailwind.config = {
       theme: { extend: {
@@ -41,73 +105,111 @@
 
     <!-- ========== 头部：上下文 ========== -->
     <div class="mb-10">
-      <h1 class="text-3xl md:text-4xl font-bold mb-2">笔记工坊</h1>
-      <p class="text-ink-500 mb-4">把陪读室的内容，1 键变成可发布的笔记</p>
-      <div id="context-info" class="text-sm text-ink-700 p-3 rounded-md bg-paper-100 border border-paper-200">
+      <h1 class="workshop-page-title">笔记工坊</h1>
+      <p class="workshop-subtitle">把陪读室的内容，1 键变成可发布的笔记</p>
+      <div id="context-info" class="context-bar">
         当前：<span class="font-semibold">未关联到具体章节</span> · <a href="reader.html" class="text-accent-500 hover:underline">去陪读室选书选章</a>
+      </div>
+      <!-- 章节原文预览 -->
+      <div id="chapter-preview" class="hidden chapter-preview">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold">📖 本章原文</h3>
+          <button id="chapter-preview-toggle" class="text-xs text-ink-500 hover:text-ink-900">收起 ▴</button>
+        </div>
+        <pre id="chapter-preview-content" class="chapter-preview-text"></pre>
       </div>
     </div>
 
-    <!-- ========== 4 种模板 ========== -->
-    <section class="mb-10">
-      <h2 class="text-lg font-semibold mb-4">选一种模板生成</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- ========== 4 种模板（商业级 v3 · 郭嘉方案 A 复用）========== -->
+    <section class="template-section">
+      <h2 class="section-title">选一种模板生成</h2>
+      <div class="template-grid">
         <button class="template-card" data-template="wechat_article">
-          <span class="icon">📝</span>
-          <div class="title">公众号长文</div>
-          <p class="desc">基于 DeepSeek 生成 1500-2500 字深度长文，结构完整，可直接发布到公众号。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：知识博主 / 深度分享 · <span class="text-accent-500">→ action=note</span></p>
+          <div class="template-icon-frame">📝</div>
+          <div class="template-title">公众号长文</div>
+          <p class="template-desc">基于 DeepSeek 生成 1500-2500 字深度长文，结构完整，可直接发布到公众号。</p>
+          <div class="template-meta">→ action=note</div>
         </button>
         <button class="template-card" data-template="xhs_6frame">
-          <span class="icon">📱</span>
-          <div class="title">小红书 6 帧图文</div>
-          <p class="desc">3:4 轮播图 · 6 帧 · 钩子 + 干货 + CTA。直接喂给 caiji-xhs-writer 渲染。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：种草 / 流量 / 引流公众号 · <span class="text-accent-500">→ action=share</span></p>
+          <div class="template-icon-frame">📱</div>
+          <div class="template-title">小红书 6 帧图文</div>
+          <p class="template-desc">3:4 轮播图 · 6 帧 · 钩子 + 干货 + CTA。直接喂给 caiji-xhs-writer 渲染。</p>
+          <div class="template-meta">→ action=share</div>
         </button>
         <button class="template-card" data-template="mindmap">
-          <span class="icon">🧠</span>
-          <div class="title">思维导图</div>
-          <p class="desc">Markdown 树形结构 + 节点高亮。结构化呈现整本书 / 整章的核心脉络。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：复习 / 分享 / 二次创作 · <span class="text-accent-500">→ action=note + 树形化</span></p>
+          <div class="template-icon-frame">🧠</div>
+          <div class="template-title">思维导图</div>
+          <p class="template-desc">Markdown 树形结构 + 节点高亮。结构化呈现整本书 / 整章的核心脉络。</p>
+          <div class="template-meta">→ action=note + 树形化</div>
         </button>
         <button class="template-card" data-template="card_share">
-          <span class="icon">💳</span>
-          <div class="title">卡片分享</div>
-          <p class="desc">3 张金句卡片（1:1），朋友圈 / 微信群 / 即刻 通用。</p>
-          <p class="text-xs text-ink-500 mt-2">适用：日常发圈 / 个人 IP · <span class="text-accent-500">→ action=quote</span></p>
+          <div class="template-icon-frame">💳</div>
+          <div class="template-title">卡片分享</div>
+          <p class="template-desc">3 张金句卡片（1:1），朋友圈 / 微信群 / 即刻 通用。</p>
+          <div class="template-meta">→ action=quote</div>
         </button>
       </div>
+
+      <!-- D12.13-C · 从对话生成想法笔记（一键按钮） -->
+      <div class="auto-generate-bar">
+        <button id="auto-generate-note" type="button"
+                class="auto-generate-btn"
+                title="不输入原文，直接从陪读对话提炼笔记（主公观点驱动）">
+          ✨ 从对话生成想法笔记
+        </button>
+        <span class="auto-generate-hint" id="auto-generate-hint">
+          不需粘原文，直接从陪读对话提炼笔记（主公观点驱动）
+        </span>
+      </div>
     </section>
 
-    <!-- ========== 生成结果区 ========== -->
+    <!-- ========== 生成结果区（商业级 v3）========== -->
     <section id="result-section" class="hidden mb-10">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold">
+      <div class="result-header">
+        <h2 class="result-title">
           生成结果
-          <span id="result-template-label" class="text-sm text-ink-500 ml-2"></span>
+          <span id="result-template-label" class="result-template"></span>
         </h2>
         <div class="flex items-center gap-2">
-          <button id="copy-result" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">复制</button>
-          <button id="download-md" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">下载 .md</button>
+          <button id="copy-result" class="result-action-btn">复制</button>
+          <button id="download-md" class="result-action-btn">下载 .md</button>
         </div>
       </div>
-      <div id="result-meta" class="text-xs text-ink-500 mb-3"></div>
-      <pre id="result-content" class="p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50 text-sm whitespace-pre-wrap font-sans overflow-x-auto"></pre>
+      <div id="result-meta" class="result-meta"></div>
+      <pre id="result-content" class="result-content"></pre>
 
-      <!-- 导出 · B 降级：仅 Copy + Markdown；飞书/Obsidian 推到 D6 -->
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <span class="text-sm text-ink-500">导出到：</span>
-        <button id="export-copy"     class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">📄 复制全部</button>
-        <button id="export-markdown" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">⬇ 下载 .md</button>
-        <span class="text-xs text-ink-500 ml-1">📝 飞书 / Obsidian 导出计划在 D6 接入</span>
+      <!-- ========== 小红书 6 帧 · PNG 渲染面板（B1） ========== -->
+      <div id="share-images-panel" class="hidden mt-6">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-semibold">
+            🖼 6 帧 PNG 渲染
+            <span id="share-images-status" class="text-sm text-ink-500 ml-2"></span>
+          </h3>
+          <div class="flex items-center gap-2">
+            <button id="share-zip-btn"  class="hidden px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">⬇ 下载 .zip</button>
+            <button id="share-json-btn" class="px-3 py-1.5 text-xs rounded-md border border-ink-300 hover:border-ink-900">📄 下载 JSON</button>
+          </div>
+        </div>
+        <div id="share-images-grid" class="card-grid">
+          <!-- 6 个 .card-item 由 JS 串行填充；初始为骨架屏 .card-loading -->
+        </div>
+        <p class="text-xs text-ink-500 mt-2">渲染走 <code>/api/render-card</code>（Guizang 风格 + midnight-ink 主题 · 1080×1440 · deviceScaleFactor=1）</p>
+      </div>
+
+      <!-- 导出区（商业级 v3） -->
+      <div class="export-row">
+        <span class="export-label">导出到：</span>
+        <button id="export-copy" class="result-action-btn">📄 复制全部</button>
+        <button id="export-markdown" class="result-action-btn">⬇ 下载 .md</button>
+        <span class="export-note">📝 飞书 / Obsidian 导出计划在 D6 接入</span>
       </div>
     </section>
 
-    <!-- ========== 历史记录 ========== -->
+    <!-- ========== 历史笔记（商业级 v3 · 卡片化）========== -->
     <section>
-      <h2 class="text-lg font-semibold mb-3">历史笔记</h2>
-      <div id="notes-history" class="space-y-2">
-        <p class="text-sm text-ink-500">暂无历史笔记</p>
+      <h2 class="section-title">历史笔记</h2>
+      <div id="notes-history" class="notes-history">
+        <p class="empty-state">暂无历史笔记</p>
       </div>
     </section>
 
@@ -154,26 +256,330 @@
       let currentTemplate = null;
       let latestNote = null;
 
+      // 2026-06-10 吕玲绮：上下文状态（支持 URL ?bookId=&chapter= 跳转 + 章节下拉）
+      let contextBookId = null;   // 当前上下文关联的书
+      let contextChapter = 0;     // 当前上下文关联的章（0-based）
+      let contextAllBooks = [];   // 缓存 books.json（拉取失败也不影响 P2-K 默认流）
+      const urlBookId = App.getQueryParam('bookId');
+      const urlChapterRaw = App.getQueryParam('chapter');
+      const urlChapterNum = urlChapterRaw == null ? null : parseInt(urlChapterRaw, 10);
+      const hasUrlCtx = urlBookId && Number.isInteger(urlChapterNum) && urlChapterNum >= 0;
+
       // 1. 加载最近一次笔记
+      // D8-2 · 已撤回 fix-9/11/12 pending flag 兜底（D8-2 真异步替代 · 2026-06-13 20:41）
+      // 后端 DO 队列保证生成跑完 · 主公切走不影响
+
       const notes = App.getNotes();
-      if (notes.length > 0) {
-        latestNote = notes[notes.length - 1];
-        contextInfo.innerHTML = `当前：<span class="font-semibold">${escapeHtml(latestNote.bookTitle || '未关联')}</span> · 第 ${(latestNote.chapter || 0) + 1} 章 · 思考题 ${latestNote.answers?.length || 0} 道 · <a href="reader.html" class="text-accent-500 hover:underline">换一本</a>`;
+      // P2-K 修：过滤掉"未生成"（无 content 且无 template）的占位 note，避免历史区塞满 reader 草稿
+      const generatedNotes = notes.filter(n => n && (n.content || n.template));
+      // D8-2 v3.3 fix-15: 无 URL 参数时不自动关联（主公 21:56 反馈）
+      // 旧逻辑：取最后一个 note 的 chapter 作为默认
+      // 新逻辑：保持 contextBookId=null → 显示"未关联到具体章节"
+      // fix-14 占位 note 也会进 generatedNotes（因为有 template 字段）—— 用 status 字段过滤
+      if (generatedNotes.length > 0) {
+        const _completedNotes = generatedNotes.filter(n => n.status !== 'pending');
+        if (_completedNotes.length > 0 && !hasUrlCtx) {
+          // 不再用 latestNote 兜底 contextBookId · 保持未关联状态
+        }
+      }
+      // URL 参数优先级最高（覆盖 latestNote 的默认上下文）
+      if (hasUrlCtx) {
+        contextBookId = urlBookId;
+        contextChapter = urlChapterNum;
+        // D8-1 fix-1: URL 优先合成 latestNote
+        // 之前 URL 只更新下拉框/原文预览，generate() 仍用 localStorage 第一个 note
+        // 现在用 URL 的 bookId+chapter 合成虚拟 latestNote，AI 看到的就是当前章
+        const _taMap = readThinkingAnswersForChapter(urlBookId, urlChapterNum);
+        const _answers = Object.keys(_taMap)
+          .map(k => {
+            const _qIdx = Number(k);
+            const _item = _taMap[k];
+            return {
+              qIndex: _qIdx,
+              question: _item.qText || `思考题 ${_qIdx}`,
+              answer: _item.answer || '',
+            };
+          })
+          .filter(a => a.answer && String(a.answer).trim());
+        const _book = contextAllBooks.find(b => b.id === urlBookId);
+        latestNote = {
+          bookId: urlBookId,
+          bookTitle: _book?.title || latestNote?.bookTitle || urlBookId,
+          bookAuthor: _book?.author || '佚名',
+          chapter: urlChapterNum,
+          answers: _answers,
+          dialogue: latestNote?.dialogue || [],
+          createdAt: new Date().toISOString(),
+        };
       }
 
-      // 2. 历史列表
-      if (notes.length > 0) {
-        notesHistoryEl.innerHTML = notes.slice().reverse().slice(0, 10).map(n => `
-          <div class="p-3 rounded border border-paper-200 bg-paper-50 text-sm flex items-center justify-between">
-            <div>
-              <span class="font-semibold">${escapeHtml(n.bookTitle || '未关联')}</span>
-              <span class="text-xs text-ink-500 ml-2">第 ${(latestNote.chapter || 0) + 1} 章</span>
-              <span class="text-xs text-ink-500 ml-2">${n.template ? `· ${TEMPLATES[n.template] || n.template}` : '· 未生成'}</span>
+      // 2. 拉取 books.json（异步；不阻塞 P2-K 默认渲染）
+      fetch('/data/books.json').then(r => r.json()).then(j => {
+        contextAllBooks = Array.isArray(j) ? j : (j.books || []);
+        // 有 URL 参数时用 books.json 里的标题回填上下文
+        renderContextInfo();
+      }).catch(() => {
+        renderContextInfo();
+      });
+
+      // 1.5. 渲染上下文信息行（含章节下拉）
+      function renderContextInfo() {
+        if (!contextBookId) {
+          // D8-2 v4.1 fix-29: 首项"请选择书籍"（空 value）· 不偷偷关联
+          const _noCtxBookOptions = '<option value="">-- 请选择书籍 --</option>' + contextAllBooks.map(b =>
+            `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title || b.id)}</option>`
+          ).join('');
+          // 章节下拉首项"请选择章节"（空 value）
+          const _noCtxFirstBook = contextAllBooks[0];
+          const _noCtxChapterCount = _noCtxFirstBook?.chapters || 1;
+          const _noCtxChapterOptions = ['<option value="">-- 请选择章节 --</option>'];
+          for (let i = 0; i < _noCtxChapterCount; i++) {
+            _noCtxChapterOptions.push(`<option value="${i}">第 ${i + 1} 章</option>`);
+          }
+          contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${_noCtxBookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${_noCtxChapterOptions.join('')}</select> <span class="text-ink-500">· 请选书选章</span> · <a href="reader.html" class="text-accent-500 hover:underline">或去陪读室</a>`;
+          // 绑 change（首次绑定可能 books.json 未到，所以用 _onCtxBookChange 处理）
+          _bindBookChapterSelectors();
+          // D8-2 v4.1 fix-29: 未关联态不显示原文（保持"未选"体感一致）
+          hideChapterPreview();
+          // 清空原文区内容（避免上次残留）
+          if (chapterPreviewContent) chapterPreviewContent.textContent = '';
+          return;
+        }
+        const book = contextAllBooks.find(b => b.id === contextBookId);
+        const bookTitle = book?.title || latestNote?.bookTitle || contextBookId;
+        const totalCh = Array.isArray(book?.mdChapters) ? book.mdChapters.length : null;
+        // 章节下拉选项数 = 至少 1（防 0 章书）；若有 mdChapters 则用其长度
+        const chapterCount = totalCh && totalCh > 0 ? totalCh : book?.chapters || Math.max((contextChapter + 1), 1);
+        const options = [];
+        for (let i = 0; i < chapterCount; i++) {
+          const selected = i === contextChapter ? 'selected' : '';
+          options.push(`<option value="${i}" ${selected}>第 ${i + 1} 章</option>`);
+        }
+        const answersCount = (() => {
+          if (!contextBookId || contextChapter == null) return 0;
+          const _taMap = readThinkingAnswersForChapter(contextBookId, contextChapter);
+          return Object.values(_taMap).filter(x => x && x.answer && String(x.answer).trim()).length;
+        })();
+        const chapterTitle = book?.chapterTitles?.[contextChapter] || `第 ${contextChapter + 1} 章`;
+        // D8-2 v3.3 fix-16: 加书籍下拉
+        // D8-2 v4.1 fix-29: 已关联态书籍下拉也加"请选择书籍"首项（不偷偷保持）
+        const bookOptions = '<option value="">-- 请选择书籍 --</option>' + contextAllBooks.map(b =>
+          `<option value="${escapeHtml(b.id)}" ${b.id === contextBookId ? 'selected' : ''}>${escapeHtml(b.title || b.id)}</option>`
+        ).join('');
+        contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${bookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${options.join('')}</select> <span class="text-ink-500">· ${escapeHtml(chapterTitle)} · 思考题 ${answersCount} 道</span> · <a href="reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${contextChapter}" class="ml-1 px-2 py-1 text-xs rounded border border-ink-300 hover:border-ink-900">📖 返回陪读</a>`;
+        // D8-2 v3.4 fix-17: 抽函数复用（让"未关联态"也能绑下拉）
+        _bindBookChapterSelectors();
+        // 加载章节原文预览
+        loadChapterPreview(book, contextChapter);
+      }
+
+      /**
+       * D8-2 v3.4 fix-17: 书籍/章节下拉 change 监听（两个分支共用）
+       * 解决"未关联态"下拉没绑事件的问题
+       */
+      function _bindBookChapterSelectors() {
+        const sel = document.getElementById('chapter-select-workshop');
+        if (sel && !sel.dataset.bound) {
+          sel.addEventListener('change', (e) => {
+            const newChRaw = e.target.value;
+            // D8-2 v4.1 fix-30: 空 value（未选）不切，提示先选
+            if (newChRaw === '') {
+              showToast?.('请先选择章节', 'warn');
+              e.target.value = '';  // 保持空
+              return;
+            }
+            const newCh = parseInt(newChRaw, 10);
+            if (!Number.isInteger(newCh) || newCh === contextChapter) return;
+            // D8-2 v4.1 fix-30: 切章节前必须先选书
+            if (!contextBookId) {
+              showToast?.('请先选择书籍', 'warn');
+              e.target.value = '';
+              return;
+            }
+            contextChapter = newCh;
+            // 切章节时合成 latestNote（如还没）
+            if (!latestNote || latestNote.bookId !== contextBookId || latestNote.chapter !== contextChapter) {
+              const _taMap = readThinkingAnswersForChapter(contextBookId || '', contextChapter);
+              const _answers = Object.keys(_taMap)
+                .map(k => ({ qIndex: Number(k), question: _taMap[k].qText || `思考题 ${k}`, answer: _taMap[k].answer || '' }))
+                .filter(a => a.answer && String(a.answer).trim());
+              const _b = contextAllBooks.find(b => b.id === contextBookId);
+              latestNote = {
+                bookId: contextBookId,
+                bookTitle: _b?.title || contextBookId,
+                bookAuthor: _b?.author || '佚名',
+                chapter: contextChapter,
+                answers: _answers,
+                dialogue: [],
+                createdAt: new Date().toISOString(),
+              };
+            }
+            renderContextInfo();
+            showToast?.(`已切换到第 ${newCh + 1} 章`, 'info');
+          });
+          sel.dataset.bound = '1';
+        }
+        const bookSel = document.getElementById('book-select-workshop');
+        if (bookSel && !bookSel.dataset.bound) {
+          bookSel.addEventListener('change', (e) => {
+            const newBookId = e.target.value;
+            // D8-2 v4.1 fix-30: 空 value（未选）不切
+            if (newBookId === '') {
+              contextBookId = null;
+              contextChapter = 0;
+              latestNote = null;
+              renderContextInfo();
+              showToast?.('已取消书籍选择', 'info');
+              return;
+            }
+            if (newBookId === contextBookId) return;
+            contextBookId = newBookId;
+            contextChapter = 0;
+            const _taMap = readThinkingAnswersForChapter(contextBookId, 0);
+            const _answers = Object.keys(_taMap)
+              .map(k => ({ qIndex: Number(k), question: _taMap[k].qText || `思考题 ${k}`, answer: _taMap[k].answer || '' }))
+              .filter(a => a.answer && String(a.answer).trim());
+            const _b = contextAllBooks.find(b => b.id === newBookId);
+            latestNote = {
+              bookId: newBookId,
+              bookTitle: _b?.title || newBookId,
+              bookAuthor: _b?.author || '佚名',
+              chapter: 0,
+              answers: _answers,
+              dialogue: [],
+              createdAt: new Date().toISOString(),
+            };
+            renderContextInfo();
+            showToast?.(`已切换到《${_b?.title || newBookId}》第 1 章`, 'info');
+          });
+          bookSel.dataset.bound = '1';
+        }
+      }
+      // 1.6 章节原文预览加载（先于 renderContextInfo·避免 TDZ）
+      const chapterPreview = document.getElementById('chapter-preview');
+      const chapterPreviewContent = document.getElementById('chapter-preview-content');
+      const chapterPreviewToggle = document.getElementById('chapter-preview-toggle');
+
+      // 首次渲染（用 latestNote 默认值；books.json 后到会重渲染补全书名）
+      renderContextInfo();
+
+      function hideChapterPreview() {
+        chapterPreview.classList.add('hidden');
+      }
+
+      chapterPreviewToggle?.addEventListener('click', () => {
+        chapterPreview.classList.add('hidden');
+      });
+
+      async function loadChapterPreview(book, chapterIdx) {
+        const mdPath = book?.mdChapters?.[chapterIdx];
+        if (!mdPath) {
+          chapterPreviewContent.textContent = '（待补原文，可继续陪读）';
+          chapterPreview.classList.remove('hidden');
+          return;
+        }
+        try {
+          const resp = await fetch(mdPath);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const text = await resp.text();
+          if (!text || !text.trim()) throw new Error('empty');
+          chapterPreviewContent.textContent = text;
+          chapterPreview.classList.remove('hidden');
+        } catch (e) {
+          chapterPreviewContent.textContent = '（待补原文，可继续陪读）';
+          chapterPreview.classList.remove('hidden');
+        }
+      }
+
+      // 2. 历史列表 · P2-K 修：每行可点击展开 + 显示各自 chapter/content
+      // D8-2 v3.5 fix-18: 每次 renderHistory 直接从 localStorage 重读（不用 generatedNotes 数组快照）
+      // 修复"未关联态历史笔记看不到"——DOMContentLoaded 顶层快照 vs 实时数据可能不一致
+      function renderHistory() {
+        const _allNotesRaw = App.getNotes();
+        const _allNotes = _allNotesRaw.filter(n => n && (n.content || n.template || n.status === 'pending'));
+        // D8-2 v3.6 fix-19: 调试日志 + 空状态提示带条数
+        console.log('[fix-19] renderHistory: localStorage 共', _allNotesRaw.length, '条, 过滤后', _allNotes.length, '条');
+        // 同步到 generatedNotes（保持其他逻辑一致）
+        generatedNotes.length = 0;
+        generatedNotes.push(..._allNotes);
+        const list = _allNotes.slice().reverse().slice(0, 10);
+        if (list.length === 0) {
+          notesHistoryEl.innerHTML = `<p class="text-sm text-ink-500">暂无历史笔记（localStorage 共 ${_allNotesRaw.length} 条）</p>`;
+          return;
+        }
+        notesHistoryEl.innerHTML = list.map((n, idx) => `
+          <div class="history-row history-card" data-history-idx="${idx}" role="button" tabindex="0" aria-expanded="false">
+            <div class="flex items-center justify-between history-head">
+              <div class="min-w-0 flex-1">
+                <span class="font-semibold">${escapeHtml(n.bookTitle || '未关联')}</span>
+                <span class="text-xs text-ink-500 ml-2">第 ${(n.chapter || 0) + 1} 章</span>
+                <span class="text-xs text-ink-500 ml-2">${n.template ? `· ${TEMPLATES[n.template] || n.template}` : '· 未生成'}</span>
+              </div>
+              <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+                <span class="text-xs text-ink-500">${(n.createdAt ? new Date(n.createdAt).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }).replace(/\//g, '-') : '')}</span>
+                <span class="history-toggle text-ink-500 text-xs">▾ 展开</span>
+              </div>
             </div>
-            <span class="text-xs text-ink-500">${(n.createdAt || '').slice(0, 10)}</span>
+            <div class="history-body hidden mt-3 pt-3 border-t border-paper-200">
+              <pre class="history-content whitespace-pre-wrap font-sans text-xs leading-relaxed max-h-96 overflow-y-auto p-3 rounded bg-paper-100 border border-paper-200"></pre>
+              <div class="mt-2 flex gap-2">
+                <button type="button" class="history-copy result-action-btn">📄 复制</button>
+                <button type="button" class="history-dl result-action-btn">⬇ 下载 .md</button>
+                <button type="button" class="history-del result-action-btn text-accent-500 hover:bg-accent-500 hover:text-paper-50">🗑 删除</button>
+                <span class="history-meta text-xs text-ink-500 self-center ml-auto"></span>
+              </div>
+            </div>
           </div>
         `).join('');
       }
+
+      renderHistory();
+
+      // D8-2 v3.6 fix-21: 页面 load 时扫描 pending 占位 → 自动调 status API 补全完成态
+      // 解决"主公点生成后切走页面，异步完成时前端 unload 导致占位永远 pending"
+      async function _recoverPendingTasks() {
+        const _pending = generatedNotes.filter(n => n.status === 'pending' && n.taskId);
+        if (_pending.length === 0) {
+          console.log('[fix-21] 无待恢复任务');
+          return;
+        }
+        console.log('[fix-21] 发现', _pending.length, '个待恢复任务');
+        for (const _p of _pending) {
+          try {
+            const resp = await fetch(`/api/workshop/status?taskId=${_p.taskId}`);
+            const data = await resp.json();
+            if (data.ok && data.status === 'done') {
+              // 替换占位为完成 note
+              const _allNotes = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
+              const _filtered = _allNotes.filter(n => !(n.taskId === _p.taskId && n.status === 'pending'));
+              _filtered.push({
+                ..._p,
+                content: data.result.reply,
+                status: 'done',
+                elapsedMs: data.elapsedMs,
+              });
+              localStorage.setItem('readdeep.notes', JSON.stringify(_filtered));
+              console.log('[fix-21] 任务', _p.taskId.slice(0, 8), '已自动恢复（', data.result.reply.length, '字）');
+            } else if (data.ok && data.status === 'failed') {
+              const _allNotes = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
+              const _filtered = _allNotes.filter(n => !(n.taskId === _p.taskId && n.status === 'pending'));
+              _filtered.push({ ..._p, status: 'failed', error: data.error });
+              localStorage.setItem('readdeep.notes', JSON.stringify(_filtered));
+              console.log('[fix-21] 任务', _p.taskId.slice(0, 8), '失败已记录');
+            } else {
+              console.log('[fix-21] 任务', _p.taskId.slice(0, 8), '状态:', data.status, '· 保持占位');
+            }
+          } catch (e) {
+            console.warn('[fix-21] 恢复任务失败', _p.taskId, e);
+          }
+        }
+        renderHistory();
+        const _recovered = generatedNotes.filter(n => n.status === 'done' || n.status === 'failed').length;
+        if (_recovered > 0) {
+          showToast?.(`✅ 自动恢复 ${_recovered} 个历史任务`, 'success');
+        }
+      }
+      _recoverPendingTasks();
 
       // 3. 模板点击 → 调后端 /api/workshop
       document.querySelectorAll('.template-card').forEach(btn => {
@@ -183,42 +589,290 @@
         });
       });
 
+      // D12.13-C · 从对话生成想法笔记按钮
+      initAutoGenerateButton();
+
       /**
        * 构造 input：把 latestNote 转成 AI 可读的原文
        * 用法：把"用户答过的题"和"陪读上下文"拼成一段自然语言
+       * v2 · 2026-06-10 衔接缺口修复：题面 a.question 缺失时，从 localStorage 补读（key=readdeep.thinkingAnswers.{bookId}）
        */
       function buildInput(note) {
         const ctx = `《${note.bookTitle || '未指定'}》第 ${(note.chapter || 0) + 1} 章`;
-        const answers = (note.answers || []).map((a, i) => `思考题 ${i + 1}：${a.question || ''}\n我的回答：${a.answer || ''}`).join('\n\n');
+        // v2：从 localStorage 读题面，补到 answer 里（answers 数组原只带 qIndex + answer）
+        const taMap = readThinkingAnswersForChapter(note.bookId, note.chapter || 0);
+        const answers = (note.answers || []).map((a, i) => {
+          const qText = a.question || (taMap[a.qIndex] && taMap[a.qIndex].qText) || '（题面未记录）';
+          return `思考题 ${i + 1}：${qText}\n我的回答：${a.answer || ''}`;
+        }).join('\n\n');
         const dialogue = (note.dialogue || []).slice(-6).map(d => `${d.role || 'user'}：${d.text || ''}`).join('\n');
         return `${ctx}\n\n【我的回答】\n${answers || '（暂无回答）'}\n\n【陪读对话节选】\n${dialogue || '（暂无）'}`;
       }
 
       /**
-       * 构造 bookContext
+       * v2 · 2026-06-10 衔接缺口修复：从 localStorage 读主公本章思考题答案
+       * key 格式：readdeep.thinkingAnswers.{bookId} → {chapter: {qIndex: {qText, answer}}}
+       * 返回：{ qIndex: { qText, answer } }（只看指定 chapter）
        */
-      function buildBookContext(note) {
-        return {
-          title: note.bookTitle || '未指定',
-          author: note.bookAuthor || '佚名',
-          chapter: `第 ${(note.chapter || 0) + 1} 章`,
-        };
+      function readThinkingAnswersForChapter(bookId, chapter) {
+        if (!bookId) {
+          console.log('[fix-26] readThinkingAnswersForChapter: bookId 为空，跳过');
+          return {};
+        }
+        try {
+          const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
+          if (!raw) {
+            console.log('[fix-26] readThinkingAnswersForChapter: localStorage 无 key:', `readdeep.thinkingAnswers.${bookId}`);
+            return {};
+          }
+          const all = JSON.parse(raw);
+          // D8-2 v3.9 fix-26: 调试日志（贴 console 给卧龙看）
+          console.log('[fix-26] readThinkingAnswersForChapter: bookId=', bookId, 'chapter=', chapter, 'localStorage keys=', Object.keys(all), 'all[chapter]=', all[chapter], 'typeof=', typeof all[chapter]);
+          const ch = all[chapter];
+          return ch && typeof ch === 'object' ? ch : {};
+        } catch (e) {
+          console.warn('[workshop] 读思考题答案失败', e);
+          return {};
+        }
       }
 
       /**
-       * 调后端 /api/workshop
+       * v2 · 2026-06-10 衔接缺口修复：把本章思考题答案转换成 [{qIndex, qText, answer}]
+       * 过滤掉未答题（answer 为空）；qText 缺失时用题序代替
        */
-      async function callWorkshopApi(action, input, bookContext) {
-        const resp = await fetch('/api/workshop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, input, bookContext, difficulty: '入门' }),
-        });
-        const j = await resp.json();
-        if (!resp.ok || !j.ok) {
-          throw new Error(j.error || `HTTP ${resp.status}`);
+      function buildThinkingAnswersForApi(bookId, chapter) {
+        const ch = readThinkingAnswersForChapter(bookId, chapter);
+        return Object.keys(ch)
+          .map(k => ({ qIndex: Number(k), ...ch[k] }))
+          .filter(a => a.answer && String(a.answer).trim())
+          .sort((a, b) => a.qIndex - b.qIndex);
+      }
+
+      /**
+       * D12.13-C · 2026-06-16：从 localStorage 读陪读聊天历史
+       * key: readdeep.chatHistory.{bookId}
+       * 返回：[{ role, agent?, content, ts }]（不带过滤，后端会自己处理）
+       */
+      function readChatHistoryFromStorage(bookId) {
+        if (!bookId) return [];
+        try {
+          const raw = localStorage.getItem(`readdeep.chatHistory.${bookId}`);
+          if (!raw) return [];
+          const arr = JSON.parse(raw);
+          return Array.isArray(arr) ? arr : [];
+        } catch (e) {
+          console.warn('[workshop] 读聊天历史失败', e);
+          return [];
         }
-        return j;
+      }
+
+      /**
+       * D12.13-C · 检查陪读历史是否足聊（>=4 条有效消息）
+       */
+      function hasEnoughChatHistory(bookId) {
+        const arr = readChatHistoryFromStorage(bookId);
+        return arr.filter(m => m && m.content && String(m.content).trim()).length >= 4;
+      }
+
+      /**
+       * D12.13-C · 从对话生成想法笔记（一键按钮）
+       * - 不需粘原文，直接从陪读对话提炼
+       * - 复用 generate('wechat_article') 流程，但把 input 清空让后端用 chatHistory 合成
+       */
+      async function autoGenerateNoteFromChat() {
+        const btn = document.getElementById('auto-generate-note');
+        const hint = document.getElementById('auto-generate-hint');
+        if (!btn) return;
+
+        // 1. 校验上下文
+        if (!latestNote) {
+          showToast?.('请先去陪读室读一章，再回来生成笔记', 'warn');
+          setTimeout(() => { location.href = 'reader.html'; }, 800);
+          return;
+        }
+        const bookId = latestNote.bookId || contextBookId;
+        if (!bookId) {
+          showToast?.('未选书，先去陪读室选书', 'warn');
+          return;
+        }
+
+        // 2. 校验聊天历史（>=4 条）
+        if (!hasEnoughChatHistory(bookId)) {
+          showToast?.('⚠️ 陪读对话还不够（至少 2 轮），先去陪读室聊几句', 'warn');
+          setTimeout(() => {
+            const ch = latestNote?.chapter ?? contextChapter ?? 0;
+            location.href = `reader.html?id=${encodeURIComponent(bookId)}&chapter=${ch}`;
+          }, 800);
+          return;
+        }
+
+        // 3. UI：按钮 disable + 提示
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = '🌀 生成中…';
+        if (hint) hint.textContent = `从陪读对话提炼中（${readChatHistoryFromStorage(bookId).length} 条）`;
+
+        try {
+          // 4. 直接调 /api/workshop，action=note，input=空（让后端用 chatHistory 合成）
+          const input = '';  // 关键：input 为空，后端会用 chatHistory 合成
+          const bookContext = buildBookContext(latestNote);
+          const thinkingAnswers = buildThinkingAnswersForApi(bookId, latestNote.chapter || 0);
+          const chatHistory = readChatHistoryFromStorage(bookId);
+
+          const resp = await fetch('/api/workshop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'note', input, bookContext, difficulty: '入门', thinkingAnswers, chatHistory, async: true }),
+          });
+          const submitData = await resp.json();
+          if (!submitData.ok) throw new Error(submitData.error || '提交失败');
+
+          const taskId = submitData.taskId;
+          console.log('[D12.13-C auto] 任务已提交', taskId);
+
+          // 5. 复用 generate() 的渲染：先把按钮状态显示好，让主公看到进度
+          currentTemplate = 'wechat_article';
+          resultLabel.textContent = `· 从对话生成的想法笔记`;
+          resultMeta.textContent = `⏳ 从陪读对话生成中…（taskId=${taskId.slice(0, 8)}…）`;
+          resultContent.textContent = '';
+          resultContent.classList.add('streaming');
+          resultContent.textContent = '▍';
+          resultSection.classList.remove('hidden');
+          resultSection.scrollIntoView({ behavior: 'smooth' });
+
+          // 6. 写占位
+          const placeholderNote = {
+            bookId,
+            bookTitle: latestNote.bookTitle,
+            chapter: latestNote.chapter,
+            template: 'wechat_article',
+            content: '',
+            action: 'note',
+            createdAt: new Date().toISOString(),
+            taskId,
+            status: 'pending',
+            source: 'auto_from_chat',  // 标记：来源是"从对话生成"
+          };
+          App.saveNote(placeholderNote);
+          generatedNotes.push(placeholderNote);
+          renderHistory();
+          showToast?.('⏳ 从对话生成中，可在历史区查看进度', 'info');
+
+          // 7. 轮询拿结果（与 generate() 保持一致）
+          const POLL_INTERVAL = 3000;
+          const MAX_POLL_COUNT = 60;
+          let apiResp = null;
+          for (let i = 0; i < MAX_POLL_COUNT; i++) {
+            await new Promise(r => setTimeout(r, POLL_INTERVAL));
+            const statusResp = await fetch(`/api/workshop/status?taskId=${taskId}`);
+            const statusData = await statusResp.json();
+            if (statusData.ok && statusData.status === 'done') {
+              apiResp = statusData.result;
+              apiResp.elapsedMs = statusData.elapsedMs;
+              break;
+            }
+            if (statusData.ok && statusData.status === 'failed') {
+              throw new Error(statusData.error || '生成失败');
+            }
+            resultMeta.textContent = `⏳ 从对话生成中…（${Math.round((i + 1) * POLL_INTERVAL / 1000)}s · status=${statusData.status}）`;
+          }
+          if (!apiResp) throw new Error('任务超时（>3 分钟）未完成');
+
+          // 8. 渲染：用 wrapAsWechatArticle 包裹
+          resultContent.classList.remove('streaming');
+          const rawReply = apiResp.reply || '';
+          const bookCtx = `${latestNote.bookTitle} · ${bookContext.chapter}`;
+          const displayText = wrapAsWechatArticle(bookContext, rawReply, null);  // 不联动 quote
+          currentResult = displayText;
+          resultContent.textContent = displayText;
+          resultMeta.innerHTML = `✅ 完成 · 来源：陪读对话提炼 · 模板：公众号长文 · action=note · ${bookCtx} · 用时 ${apiResp.elapsedMs || 0}ms · 模型 deepseek-v4-flash · taskId=${taskId.slice(0, 8)}…`;
+
+          // 9. 写完成态到 localStorage
+          try {
+            const _allNotes = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
+            const _filtered = _allNotes.filter(n => !(n.taskId === taskId && n.status === 'pending'));
+            _filtered.push({
+              ...placeholderNote,
+              content: displayText,
+              status: 'done',
+              elapsedMs: apiResp.elapsedMs || 0,
+            });
+            localStorage.setItem('readdeep.notes', JSON.stringify(_filtered));
+          } catch (e) { console.warn('[auto] localStorage 更新失败', e); }
+
+          // 10. 同步 generatedNotes
+          const _phIdx = generatedNotes.findIndex(n => n.taskId === taskId && n.status === 'pending');
+          if (_phIdx >= 0) generatedNotes.splice(_phIdx, 1);
+          const _completedNote = { ...placeholderNote, content: displayText, status: 'done', elapsedMs: apiResp.elapsedMs || 0 };
+          generatedNotes.push(_completedNote);
+          latestNote = _completedNote;
+          renderHistory();
+
+          showToast?.('✅ 从对话生成的想法笔记完成', 'success');
+        } catch (e) {
+          console.error('[auto-generate-note] 失败', e);
+          showToast?.(`❌ ${e.message || '生成失败'}`, 'error');
+          resultMeta.textContent = `❌ 生成失败：${e.message}`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = oldText;
+          if (hint) hint.textContent = '不需粘原文，直接从陪读对话提炼笔记（主公观点驱动）';
+        }
+      }
+
+      /**
+       * D12.13-C · 初始化"从对话生成想法笔记"按钮
+       */
+      function initAutoGenerateButton() {
+        const btn = document.getElementById('auto-generate-note');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+          if (typeof App !== 'undefined' && App.track) {
+            App.track('auto_generate_note', { bookId: contextBookId || (latestNote && latestNote.bookId) });
+          }
+          autoGenerateNoteFromChat();
+        });
+        // 初次渲染：根据当前上下文更新 hint
+        updateAutoGenerateHint();
+      }
+
+      function updateAutoGenerateHint() {
+        const btn = document.getElementById('auto-generate-note');
+        const hint = document.getElementById('auto-generate-hint');
+        if (!btn || !hint) return;
+        const bookId = (latestNote && latestNote.bookId) || contextBookId;
+        if (!bookId) {
+          btn.disabled = true;
+          hint.textContent = '⚠️ 未选书，先去陪读室选书';
+          return;
+        }
+        const len = readChatHistoryFromStorage(bookId).filter(m => m && m.content && String(m.content).trim()).length;
+        if (len < 4) {
+          btn.disabled = false;  // 仍然可点（点了会引导去陪读室）
+          hint.textContent = `⚠️ 陪读对话还不够（当前 ${len} 条，至少 4 条）`;
+        } else {
+          btn.disabled = false;
+          hint.textContent = `✅ 可用：${len} 条对话 → 点击生成笔记`;
+        }
+      }
+
+      // 前端 tryParseJson · 从模型输出中提取 JSON（简化版 safeParseJson）
+      function tryParseJson(text) {
+        if (!text || typeof text !== 'string') return null;
+        // 1) 匹配 ```json ... ``` 围栏
+        const fence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (fence && fence[1]) {
+          try { return JSON.parse(fence[1]); } catch (_) { /* fall through */ }
+        }
+        // 2) 截取第一个 [ 或 { 到最后一个 ] 或 }
+        const first = text.search(/[\[{]/);
+        const last = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
+        if (first >= 0 && last > first) {
+          try { return JSON.parse(text.slice(first, last + 1)); } catch (_) { /* fall through */ }
+        }
+        // 3) 裸 parse
+        try { return JSON.parse(text); } catch (_) { /* fall through */ }
+        return null;
       }
 
       /**
@@ -336,14 +990,61 @@ ${noteReply}
       }
 
       /**
-       * 调后端 /api/workshop
+       * 调后端 /api/workshop（v3 · D6 下午 P2-H 流式输出）
+       * opts.stream=true 时走 SSE 流式，opts.onDelta(delta, fullText) 每段回调
+       * 非流式保持原行为
        */
-      async function callWorkshopApi(action, input, bookContext) {
+      async function callWorkshopApi(action, input, bookContext, opts = {}) {
+        const body = { action, input, bookContext, difficulty: '入门', stream: opts.stream === true };
+        if (opts.thinkingAnswers) body.thinkingAnswers = opts.thinkingAnswers;
         const resp = await fetch('/api/workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, input, bookContext, difficulty: '入门' }),
+          body: JSON.stringify(body),
         });
+
+        // P2-H · 流式分支
+        if (opts.stream) {
+          if (!resp.ok) {
+            let errMsg = `HTTP ${resp.status}`;
+            try { const j = await resp.json(); errMsg = j.error || errMsg; } catch (_) {}
+            throw new Error(errMsg);
+          }
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const events = buf.split('\n\n');
+            buf = events.pop() || '';
+            for (const ev of events) {
+              const lines = ev.split('\n');
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data: ')) continue;
+                const payload = trimmed.slice(6).trim();
+                if (payload === '[DONE]') {
+                  return { ok: true, reply: fullText, streamed: true };
+                }
+                let parsed;
+                try { parsed = JSON.parse(payload); } catch (_) { continue; }
+                if (parsed.error) {
+                  throw new Error(parsed.error);
+                }
+                if (parsed.delta) {
+                  fullText += parsed.delta;
+                  if (opts.onDelta) opts.onDelta(parsed.delta, fullText);
+                }
+              }
+            }
+          }
+          return { ok: true, reply: fullText, streamed: true };
+        }
+
+        // 非流式路径（原有行为）
         const j = await resp.json();
         if (!resp.ok || !j.ok) {
           throw new Error(j.error || `HTTP ${resp.status}`);
@@ -357,11 +1058,222 @@ ${noteReply}
        * （新版定义在 buildBookContext 上面）
        */
 
+      // ================================================
+      // B1 · 小红书 6 帧 PNG 渲染
+      // 串行调 /api/render-card × 6 → 6 张 dataUri → 渲染 2 列网格
+      // 顶部按钮：下载 .zip（JSZip CDN）+ 下载 JSON
+      // ================================================
+
+      // 模块内状态：最新一次解析后的 6 帧 + 6 张 dataUri（zip 打包用）
+      let _shareParsed = null;
+      let _shareDataUris = []; // 长度最多 6
+
+      /**
+       * 入口：parsed 是 6 元素数组才走；不是则隐藏面板
+       * @param {Array} parsed
+       * @param {string} bookTitle
+       */
+      function renderShareImagesIfNeeded(parsed, bookTitle) {
+        const panel = document.getElementById('share-images-panel');
+        if (!Array.isArray(parsed) || parsed.length !== 6) {
+          panel.classList.add('hidden');
+          return;
+        }
+        _shareParsed = parsed;
+        _shareDataUris = [];
+        panel.classList.remove('hidden');
+
+        // 1) 渲染骨架屏（6 个 .card-item 含 .card-loading）
+        const grid = document.getElementById('share-images-grid');
+        grid.innerHTML = parsed.map((c, i) => {
+          const frame = (c && c.frame) || (i + 1);
+          const type  = (c && c.type) || '';
+          return `
+            <div class="card-item" data-frame="${frame}">
+              <div class="card-loading">
+                <div class="card-spinner"></div>
+                <div class="card-loading-text">帧 ${frame} · 渲染中…</div>
+              </div>
+              <div class="card-meta">
+                <span class="card-frame-badge">P${frame}</span>
+                <span class="card-type">${escapeHtml(type)}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('share-images-status').textContent = '· 开始渲染…';
+        document.getElementById('share-zip-btn').classList.add('hidden');
+
+        // 2) 串行调 6 次 /api/render-card
+        (async () => {
+          for (let i = 0; i < parsed.length; i++) {
+            const card = parsed[i];
+            const frame = (card && card.frame) || (i + 1);
+            const statusEl = document.getElementById('share-images-status');
+            const itemEl = grid.querySelector(`.card-item[data-frame="${frame}"]`);
+            try {
+              statusEl.textContent = `· 渲染中 ${i + 1}/6（帧 ${frame}）`;
+              const resp = await fetch('/api/render-card', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ card: { ...card, frame } }),
+              });
+              const j = await resp.json();
+              if (!resp.ok || !j.ok) {
+                throw new Error(j.error || `HTTP ${resp.status}`);
+              }
+              // D 方案·回退文本路径：dataUri === null 即用 textBody 渲染降级 UI
+              if (j.dataUri === null) {
+                if (itemEl) {
+                  itemEl.innerHTML = `
+                    <div class="card-fallback">
+                      <div class="card-meta">第 ${frame} 帧 · ${escapeHtml(card.type || '')}</div>
+                      <div class="card-text-body">${escapeHtml(j.textBody || card.text || card.quote || card.title || '')}</div>
+                    </div>
+                  `;
+                }
+                // 占位：让 OK 计数逻辑把它当成功
+                _shareDataUris[frame - 1] = null;
+              } else {
+                _shareDataUris[frame - 1] = j.dataUri;
+                if (itemEl) {
+                  itemEl.innerHTML = `
+                    <img class="card-image" src="${j.dataUri}" alt="帧 ${frame}" loading="lazy" />
+                    <div class="card-meta">
+                      <span class="card-frame-badge">P${frame}</span>
+                      <span class="card-type">${escapeHtml(card.type || '')}</span>
+                      <span class="card-size">${formatBytes(j.sizeBytes || 0)}</span>
+                    </div>
+                  `;
+                }
+              }
+            } catch (e) {
+              console.error(`[B1] 帧 ${frame} 渲染失败`, e);
+              if (itemEl) {
+                itemEl.innerHTML = `
+                  <div class="card-error">
+                    <div class="card-error-title">❌ 帧 ${frame} 渲染失败</div>
+                    <div class="card-error-msg">${escapeHtml(e.message || String(e))}</div>
+                  </div>
+                  <div class="card-meta">
+                    <span class="card-frame-badge">P${frame}</span>
+                    <span class="card-type">${escapeHtml(card.type || '')}</span>
+                  </div>
+                `;
+              }
+            }
+          }
+          // D 方案：成功条件 = dataUri 不为 null（D 模式下都是 null，占位计为 6/6）
+          const pngCount = _shareDataUris.filter(Boolean).length;
+          const fallbackCount = _shareDataUris.filter((x) => x === null).length;
+          const okCount = pngCount + fallbackCount;
+          const statusEl = document.getElementById('share-images-status');
+          if (pngCount === 6) {
+            statusEl.innerHTML = `✅ 6/6 渲染完成`;
+            document.getElementById('share-zip-btn').classList.remove('hidden');
+          } else if (fallbackCount === 6) {
+            // D 模式：6 帧全部走降级文本，不显示 zip（PNG 还没生成）
+            statusEl.innerHTML = `📝 6/6 降级显示（D 模式·PNG 待 D5+ 启用）`;
+            document.getElementById('share-zip-btn').classList.add('hidden');
+          } else {
+            statusEl.innerHTML = `⚠️ ${okCount}/6 完成（PNG ${pngCount} · 降级 ${fallbackCount}）`;
+            document.getElementById('share-zip-btn').classList.add('hidden');
+          }
+          App.track('share_render_done', { ok: okCount, total: 6, bookTitle });
+        })();
+      }
+
+      /** bytes → "1.2 MB" / "340 KB" */
+      function formatBytes(b) {
+        if (!b || b < 1024) return `${b || 0} B`;
+        if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+        return `${(b / 1024 / 1024).toFixed(2)} MB`;
+      }
+
+      /** 单张 PNG 下载（用 dataUri → blob → 触发下载） */
+      function downloadDataUriAsPng(dataUri, filename) {
+        const a = document.createElement('a');
+        a.href = dataUri;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      // D8-1 fix-5: 已废弃（主公 19:03 否决 beforeunload 拦截）
+      // 改用 Durable Object 队列（异步 A 方案 · 留 D8-2 工单）
+      // - 不再拦截 beforeunload
+      // - 主公可自由切页
+
       async function generate(templateKey) {
+        // D8-1 fix-2: 一致性校验
+        // 防止下拉框切换后 latestNote.chapter 与 contextChapter 脱钩
+        if (latestNote && contextBookId !== null && contextChapter !== undefined
+            && contextChapter !== null
+            && (latestNote.bookId !== contextBookId || latestNote.chapter !== contextChapter)) {
+          console.warn('[fix-2] latestNote 与 context 不一致，按 context 重新合成');
+          const _taMap2 = readThinkingAnswersForChapter(contextBookId, contextChapter);
+          const _answers2 = Object.keys(_taMap2)
+            .map(k => {
+              const _qIdx = Number(k);
+              const _item = _taMap2[k];
+              return {
+                qIndex: _qIdx,
+                question: _item.qText || `思考题 ${_qIdx}`,
+                answer: _item.answer || '',
+              };
+            })
+            .filter(a => a.answer && String(a.answer).trim());
+          const _book2 = contextAllBooks.find(b => b.id === contextBookId);
+          latestNote = {
+            bookId: contextBookId,
+            bookTitle: _book2?.title || latestNote?.bookTitle || contextBookId,
+            bookAuthor: _book2?.author || '佚名',
+            chapter: contextChapter,
+            answers: _answers2,
+            dialogue: latestNote?.dialogue || [],
+            createdAt: new Date().toISOString(),
+          };
+          showToast?.(`已按当前章节（第 ${contextChapter + 1} 章）重新合成上下文`, 'info');
+        }
+
         if (!latestNote) {
           alert('请先去陪读室读一章，再回来生成笔记');
           location.href = 'reader.html';
           return;
+        }
+
+        // D8-2 v3.9 fix-27: 未关联态不弹 confirm（避免跳 reader 无意义）
+        if (!contextBookId || !latestNote.bookId) {
+          alert('请先选书选章');
+          return;
+        }
+
+        // D8-1 fix-X: 切章节后无答案时弹提示
+        // 场景：主公切到未答过思考题的章节，AI 只能按章节标题泛写
+        // 行为：confirm 二次确认 · 主公确认才继续 · 取消回 reader 答思考题
+        const _noAnswers = !latestNote.answers || latestNote.answers.length === 0;
+        if (_noAnswers) {
+          const chNum = (latestNote.chapter || 0) + 1;
+          const ok = window.confirm(
+            `⚠️ 第 ${chNum} 章还没有答过思考题\n\n` +
+            `AI 只能按章节标题和书摘要泛写，输出质量会打折扣。\n\n` +
+            `点击"确定"继续生成（泛写版）\n` +
+            `点击"取消"返回陪读室先答思考题`
+          );
+          if (!ok) {
+            // D8-2 v3.7 fix-23: 取消跳转用 contextBookId + contextChapter（不用 latestNote.bookId，避免 null）
+            const _backBookId = contextBookId || latestNote?.bookId || '';
+            const _backChapter = (contextChapter != null) ? contextChapter : (latestNote?.chapter || 0);
+            if (_backBookId) {
+              location.href = `reader.html?id=${encodeURIComponent(_backBookId)}&chapter=${_backChapter}`;
+            } else {
+              location.href = 'reader.html';
+            }
+            return;
+          }
+          showToast?.('已确认 · AI 将按章节标题泛写', 'warn');
         }
 
         const action = TEMPLATE_TO_ACTION[templateKey];
@@ -381,48 +1293,167 @@ ${noteReply}
           const t0 = Date.now();
           const input = buildInput(latestNote);
           const bookContext = buildBookContext(latestNote);
-          const apiResp = await callWorkshopApi(action, input, bookContext);
-          const elapsed = Date.now() - t0;
+          // v2 · 2026-06-10 衔接缺口修复：调后端时把本章思考题答案也带过去
+          const thinkingAnswers = buildThinkingAnswersForApi(latestNote.bookId, latestNote.chapter || 0);
+
+          // P2-H · 流式输出（D6 下午）· 4 action 全部流式
+          resultContent.classList.add('streaming');
+          resultContent.textContent = '▍';
+
+          // D8-2 · 真异步：入 DO 队列 → 轮询拿结果
+          // 1. 提交任务（async=true 后端入队）
+          resultMeta.textContent = `⏳ 任务提交中…`;
+          const submitResp = await fetch('/api/workshop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, input, bookContext, difficulty: '入门', thinkingAnswers, async: true }),
+          });
+          const submitData = await submitResp.json();
+          if (!submitData.ok) {
+            throw new Error(submitData.error || '提交任务失败');
+          }
+          const taskId = submitData.taskId;
+          console.log('[D8-2] 任务已提交', taskId, submitData);
+          resultMeta.textContent = `⏳ 任务已入队 · taskId=${taskId.slice(0, 8)}… · 后台生成中（可切页）`;
+
+          // D8-2 v3.3 fix-14: 立即写占位 historyNote 到 localStorage
+          // 场景：主公点生成后切走页面（页面 unload）· 后台任务完成时回调不跑
+          // 修法：提交成功后立即写占位（带 taskId/status=pending）· 主公回 workshop 时从 localStorage 加载
+          const _placeholderNote = {
+            bookId: latestNote.bookId,
+            bookTitle: latestNote.bookTitle,
+            chapter: latestNote.chapter,
+            template: templateKey,
+            content: '',  // 空内容 → 历史区显示"⏳ 生成中"
+            action,
+            createdAt: new Date().toISOString(),
+            taskId,
+            status: 'pending',  // 标记异步中（renderHistory 会显示“⏳”）
+          };
+          App.saveNote(_placeholderNote);
+          generatedNotes.push(_placeholderNote);
+          renderHistory();
+          showToast?.('⏳ 后台生成中，可在历史区查看进度', 'info');
+
+          // 2. 轮询拿结果（3s 间隔 · 最多 3 分钟）
+          const taskStartMs = Date.now();
+          let apiResp = null;
+          const POLL_INTERVAL = 3000;
+          const MAX_POLL_COUNT = 60;
+          for (let i = 0; i < MAX_POLL_COUNT; i++) {
+            await new Promise(r => setTimeout(r, POLL_INTERVAL));
+            const statusResp = await fetch(`/api/workshop/status?taskId=${taskId}`);
+            const statusData = await statusResp.json();
+            if (!statusData.ok) {
+              console.warn('[D8-2] 轮询状态', statusData);
+              continue;
+            }
+            const elapsedSec = Math.round((Date.now() - taskStartMs) / 1000);
+            resultMeta.textContent = `⏳ 后台生成中…（${elapsedSec}s · status=${statusData.status}）`;
+            if (statusData.status === 'done') {
+              apiResp = statusData.result;
+              apiResp.elapsedMs = statusData.elapsedMs;
+              console.log('[D8-2] 任务完成', apiResp);
+              break;
+            }
+            if (statusData.status === 'failed') {
+              throw new Error(statusData.error || '生成失败');
+            }
+          }
+          if (!apiResp) {
+            throw new Error(`任务超时（>${Math.round(MAX_POLL_COUNT * POLL_INTERVAL / 1000)}s）未完成`);
+          }
+          const elapsed = apiResp.elapsedMs || (Date.now() - t0);
+
+          // 流式结束 · 去掉光标
+          resultContent.classList.remove('streaming');
+          const rawReply = apiResp.reply || '';
 
           let displayText;
           const bookCtx = `${latestNote.bookTitle} · ${bookContext.chapter}`;
 
           if (templateKey === 'wechat_article') {
-            // 包装为 公众号长文（1500-2500 字）
-            // 联动：再调一次 quote action 拿金句列表（后台已扩 maxTokens）
+            // 联动：再调一次 quote action 拿金句列表（也走异步）
             let parsedQuotes = null;
             try {
-              const quoteResp = await callWorkshopApi('quote', input, bookContext);
-              parsedQuotes = quoteResp.parsed;
+              const quoteSubmit = await fetch('/api/workshop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'quote', input, bookContext, difficulty: '入门', thinkingAnswers, chatHistory, async: true }),
+              });
+              const quoteSubmitData = await quoteSubmit.json();
+              if (quoteSubmitData.ok) {
+                for (let qi = 0; qi < 30; qi++) {
+                  await new Promise(r => setTimeout(r, 2000));
+                  const qs = await fetch(`/api/workshop/status?taskId=${quoteSubmitData.taskId}`);
+                  const qsd = await qs.json();
+                  if (qsd.ok && qsd.status === 'done') {
+                    parsedQuotes = qsd.result.parsed;
+                    break;
+                  }
+                  if (qsd.ok && qsd.status === 'failed') break;
+                }
+              }
             } catch (e) {
               console.warn('[wechat_article] 联动 quote 失败：', e.message);
             }
-            displayText = wrapAsWechatArticle(bookContext, apiResp.reply, parsedQuotes);
+            displayText = wrapAsWechatArticle(bookContext, rawReply, parsedQuotes);
           } else if (templateKey === 'mindmap') {
-            // 包装为 思维导图
-            displayText = wrapAsMindmap(bookContext, apiResp.reply);
+            displayText = wrapAsMindmap(bookContext, rawReply);
           } else if (templateKey === 'card_share') {
-            // 包装为 卡片分享（用后端 parsed JSON）
-            displayText = wrapAsCardShare(bookContext, apiResp.parsed);
+            // quote 流式 → 前端 tryParseJson
+            const parsed = tryParseJson(rawReply);
+            displayText = wrapAsCardShare(bookContext, parsed);
           } else if (templateKey === 'xhs_6frame') {
-            // 直接显示 6 帧 JSON
-            if (apiResp.parsed && Array.isArray(apiResp.parsed)) {
-              displayText = JSON.stringify(apiResp.parsed, null, 2);
+            // share 流式 → 前端 tryParseJson
+            const parsed = tryParseJson(rawReply);
+            if (parsed && Array.isArray(parsed) && parsed.length === 6) {
+              displayText = JSON.stringify(parsed, null, 2);
+              renderShareImagesIfNeeded(parsed, latestNote?.bookTitle || '读透');
             } else {
-              displayText = `⚠️ 后端未返回 6 帧 JSON（parseError: ${apiResp.parseError || '无'}）\n\n原始回复：\n${apiResp.reply}`;
+              displayText = `⚠️ 后端未返回 6 帧 JSON\n\n原始回复：\n${rawReply}`;
+              document.getElementById('share-images-panel').classList.add('hidden');
             }
           } else {
-            displayText = apiResp.reply;
+            displayText = rawReply;
           }
 
           currentResult = displayText;
           resultContent.textContent = displayText;
-          resultMeta.innerHTML = `✅ 完成 · 模板：${TEMPLATES[templateKey]} · action=${action} · ${bookCtx} · 用时 ${elapsed}ms · 模型 ${apiResp.model} · tokens ${apiResp.usage?.total_tokens || '?'}`;
+          resultMeta.innerHTML = `✅ 完成 · 模板：${TEMPLATES[templateKey]} · action=${action} · ${bookCtx} · 用时 ${elapsed}ms · 模型 deepseek-v4-flash · taskId=${taskId.slice(0, 8)}…`;
 
-          // 更新笔记草稿
-          latestNote.template = templateKey;
-          latestNote.result = displayText;
-          App.saveNote(latestNote);
+          // D8-2 v3.3 fix-14: 更新占位 note 为完成态
+          // 1. 从 generatedNotes 找占位
+          const _phIdx = generatedNotes.findIndex(n => n.taskId === taskId && n.status === 'pending');
+          if (_phIdx >= 0) {
+            generatedNotes.splice(_phIdx, 1);
+          }
+          // 2. 从 localStorage 删占位 + 写完成 note
+          try {
+            const _allNotes = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
+            const _filtered = _allNotes.filter(n => !(n.taskId === taskId && n.status === 'pending'));
+            _filtered.push({
+              ..._placeholderNote,
+              content: displayText,
+              status: 'done',
+              elapsedMs: elapsed,
+            });
+            localStorage.setItem('readdeep.notes', JSON.stringify(_filtered));
+          } catch (e) { console.warn('[fix-14] localStorage 更新失败', e); }
+
+          // D8-2 v3.7 fix-24: 删除二次 App.saveNote（避免"多生成一篇"）
+          // 旧逻辑：line 1073 已写完成 note 到 localStorage（用 _placeholderNote 保留第 5 章归属）
+          //         line 1143 又用当前 latestNote（第 7 章）再写一次 → 出现第 5 章 + 第 7 章两条
+          // 新逻辑：line 1073 已写完成 · 同步到 generatedNotes 数组 + 重新渲染即可
+          const _completedNote = { ..._placeholderNote, content: displayText, status: 'done', elapsedMs: elapsed };
+          // 同步 generatedNotes 数组（找到占位 splice，push 完成）
+          const _phIdx2 = generatedNotes.findIndex(n => n.taskId === taskId && n.status === 'pending');
+          if (_phIdx2 >= 0) {
+            generatedNotes.splice(_phIdx2, 1);
+          }
+          generatedNotes.push(_completedNote);
+          latestNote = _completedNote;  // 用完成 note 更新 latestNote（保持字段一致）
+          renderHistory();
 
           App.track('note_generate', {
             template: templateKey,
@@ -432,6 +1463,7 @@ ${noteReply}
             elapsedMs: elapsed,
           });
         } catch (e) {
+          resultContent.classList.remove('streaming');
           console.error('[generate] 失败', e);
           resultMeta.innerHTML = `❌ 失败：<code>${escapeHtml(e.message || String(e))}</code>`;
           resultContent.textContent = '';
@@ -440,6 +1472,7 @@ ${noteReply}
             action,
             error: e.message,
           });
+          return;
         }
       }
 
@@ -526,6 +1559,176 @@ ${noteReply}
       if (exportCopyBtn)     exportCopyBtn.addEventListener('click', () => handleCopy('bottom'));
       if (exportMarkdownBtn) exportMarkdownBtn.addEventListener('click', () => handleDownload('bottom'));
 
+      // B1 · 小红书 6 帧 PNG 面板按钮
+      const shareZipBtn  = document.getElementById('share-zip-btn');
+      const shareJsonBtn = document.getElementById('share-json-btn');
+
+      if (shareJsonBtn) {
+        shareJsonBtn.addEventListener('click', () => {
+          if (!_shareParsed) { showToast('还没有 6 帧数据', 'warn'); return; }
+          const title = latestNote?.bookTitle || '读透';
+          const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+          const filename = `读透-小红书6帧-${safeTitle}-${Date.now()}.json`;
+          const blob = new Blob([JSON.stringify(_shareParsed, null, 2)], { type: 'application/json;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast(`已下载：${filename}`);
+          App.track('book_share', { action: 'download_json', template: 'xhs_6frame' });
+        });
+      }
+
+      if (shareZipBtn) {
+        shareZipBtn.addEventListener('click', async () => {
+          if (!window.JSZip) {
+            showToast('JSZip 未加载，刷新页面重试', 'error');
+            return;
+          }
+          const okFrames = _shareDataUris.map((d, i) => d ? i + 1 : null).filter(Boolean);
+          if (okFrames.length === 0) { showToast('还没有可打包的 PNG', 'warn'); return; }
+          const title = latestNote?.bookTitle || '读透';
+          const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+          const zip = new JSZip();
+          for (const f of okFrames) {
+            const dataUri = _shareDataUris[f - 1];
+            const base64 = dataUri.split(',')[1] || '';
+            zip.file(`slide_0${f}.png`, base64, { base64: true });
+          }
+          // 附带元数据
+          zip.file('meta.json', JSON.stringify({
+            bookTitle: latestNote?.bookTitle || null,
+            chapter: (latestNote?.chapter || 0) + 1,
+            generatedAt: new Date().toISOString(),
+            frames: okFrames.length,
+            theme: 'midnight-ink',
+            style: 'editorial',
+          }, null, 2));
+          try {
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const filename = `读透-小红书6帧-${safeTitle}-${Date.now()}.zip`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`已下载：${filename}（${okFrames.length} 张）`);
+            App.track('book_share', { action: 'download_zip', template: 'xhs_6frame', frames: okFrames.length });
+          } catch (e) {
+            showToast(`打包失败：${e.message}`, 'error');
+          }
+        });
+      }
+
+      // P2-K 修：历史区 click 展开 + 复制/下载
+      // 用事件代理绑定一次，避免 renderHistory() 重渲染后丢失 handler
+      notesHistoryEl.addEventListener('click', async (ev) => {
+        const copyBtn = ev.target.closest('.history-copy');
+        const dlBtn   = ev.target.closest('.history-dl');
+        const delBtn  = ev.target.closest('.history-del');
+        const row     = ev.target.closest('.history-row');
+        if (!row) return;
+
+        const idx = Number(row.dataset.historyIdx);
+        const list = generatedNotes.slice().reverse().slice(0, 10);
+        const note = list[idx];
+        if (!note) return;
+
+        // 复制/下载子按钮
+        if (copyBtn) {
+          const ok = await copyToClipboard(note.content || '');
+          showToast(ok ? '已复制到剪贴板' : '复制失败', ok ? 'success' : 'error');
+          App.track('book_share', { action: 'copy', template: note.template, source: 'history' });
+          return;
+        }
+        if (dlBtn) {
+          if (!note.content) { showToast('该历史笔记无内容', 'warn'); return; }
+          const filename = buildMarkdownFilename(note.bookTitle || '未指定') + '.history.md';
+          const blob = new Blob([note.content], { type: 'text/markdown;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast(`已下载：${filename}`);
+          App.track('book_share', { action: 'download_md', template: note.template, source: 'history', filename });
+          return;
+        }
+        if (delBtn) {
+          // 二次确认
+          const ok = window.confirm(`确定删除该历史笔记？\n\n《${note.bookTitle || '未指定'}》第 ${(note.chapter || 0) + 1} 章 · ${TEMPLATES[note.template] || note.template}\n\n（删除后无法恢复）`);
+          if (!ok) return;
+          // 1. 从 generatedNotes 数组里删除（idx 指向的是 list，list 来自 generatedNotes.slice().reverse()，需要从原数组 splice）
+          const originalIdx = generatedNotes.findIndex(n => n === note || (n.bookId === note.bookId && n.chapter === note.chapter && n.createdAt === note.createdAt && n.template === note.template));
+          if (originalIdx >= 0) {
+            generatedNotes.splice(originalIdx, 1);
+          }
+          // 2. 从 localStorage 删除（用 App.notes）
+          try {
+            const all = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
+            const filtered = all.filter(n => !(n.bookId === note.bookId && n.chapter === note.chapter && n.createdAt === note.createdAt && n.template === note.template));
+            localStorage.setItem('readdeep.notes', JSON.stringify(filtered));
+          } catch (e) {
+            console.warn('[delete] localStorage 清理失败', e);
+          }
+          // 3. 重新渲染
+          renderHistory();
+          showToast('已删除', 'success');
+          App.track('history_delete', { bookId: note.bookId, chapter: note.chapter, template: note.template });
+          return;
+        }
+
+        // 点击行本身 → 展开/收起 inline
+        const body = row.querySelector('.history-body');
+        const toggle = row.querySelector('.history-toggle');
+        const contentEl = row.querySelector('.history-content');
+        const metaEl = row.querySelector('.history-meta');
+        if (!body || !contentEl) return;
+
+        const willOpen = body.classList.contains('hidden');
+        if (willOpen) {
+          // 首次展开才填内容（避免重复渲染时丢失格式）
+          if (!contentEl.textContent) {
+            contentEl.textContent = note.content || '（该历史笔记无内容）';
+            if (metaEl) {
+              const len = (note.content || '').length;
+              // D8-2 v3.8 fix-25: 显示北京时间（toLocaleString + Asia/Shanghai）
+              const _t = note.createdAt ? new Date(note.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).replace(/\//g, '-') : '未知';
+              metaEl.textContent = `字数 ${len} · 生成 ${_t}`;
+            }
+          }
+          body.classList.remove('hidden');
+          if (toggle) toggle.textContent = '▴ 收起';
+          row.setAttribute('aria-expanded', 'true');
+          row.classList.add('history-open');
+        } else {
+          body.classList.add('hidden');
+          if (toggle) toggle.textContent = '▾ 展开';
+          row.setAttribute('aria-expanded', 'false');
+          row.classList.remove('history-open');
+        }
+        App.track('history_toggle', { bookId: note.bookId, template: note.template, open: willOpen });
+      });
+
+      // 键盘可达性：Enter / Space 也可展开
+      notesHistoryEl.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const row = ev.target.closest('.history-row');
+        if (!row) return;
+        ev.preventDefault();
+        row.click();
+      });
+
       /**
        * Toast 提示组件（取代 alert）
        * @param {string} message 提示文本
@@ -554,6 +1757,15 @@ ${noteReply}
           .replace(/'/g, '&#39;');
       }
     });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] SW registered:', reg.scope))
+          .catch(err => console.error('[PWA] SW failed:', err));
+      });
+    }
   </script>
 </body>
 </html>

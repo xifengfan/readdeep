@@ -6,7 +6,11 @@
   <title>陪读室 · 读透（ReadDeep）</title>
   <meta name="description" content="选书 → 选章节 → 4 个 AI 角色陪读。" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <script>
     tailwind.config = {
       theme: { extend: {
@@ -21,7 +25,8 @@
   </script>
   <script src="reader.js" defer></script>
 </head>
-<body class="bg-paper-50 text-ink-900 font-sans antialiased paper">
+<body class="bg-paper-50 text-ink-900 antialiased paper"
+      style="font-family: var(--font-sans); line-height: var(--leading-relaxed)">
 
   <header class="sticky top-0 z-40 bg-paper-50/90 backdrop-blur border-b border-paper-200">
     <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -34,7 +39,7 @@
         <li><a href="reader.html"   class="text-accent-500 font-medium">陪读室</a></li>
         <li><a href="workshop.html" class="hover:text-accent-500">笔记工坊</a></li>
       </ul>
-      <a href="workshop.html" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md bg-accent-500 text-paper-50 hover:bg-accent-600">生成笔记</a>
+      <a href="javascript:void(0)" id="top-go-workshop" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md bg-accent-500 text-paper-50 hover:bg-accent-600">生成笔记</a>
     </nav>
   </header>
 
@@ -46,7 +51,9 @@
         <!-- 当前书 -->
         <div class="flex-1">
           <p class="text-xs text-ink-500 mb-1">当前在读</p>
-          <h1 id="current-book-title" class="text-lg md:text-xl font-semibold">加载中…</h1>
+          <h1 id="current-book-title"
+              class="font-semibold"
+              style="font-size: var(--text-2xl); line-height: var(--leading-tight)">加载中…</h1>
           <p id="current-book-meta" class="text-xs text-ink-500 mt-1"></p>
         </div>
         <!-- 选书 / 选章 -->
@@ -75,37 +82,140 @@
     <!-- ========== 方案 5 最小版：右侧折叠面板加载章节原文 ========== -->
     <section id="chapter-content-wrap" class="mb-6 p-4 md:p-6 rounded-lg border border-paper-200 bg-paper-50">
       <details id="chapter-details">
-        <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2"
+                 style="font-size: var(--text-xl); line-height: var(--leading-snug)">
           <span>📖</span>
           <span>本章原文（点击展开 / 折叠）</span>
         </summary>
-        <article id="chapter-content" class="prose mt-3 text-sm leading-relaxed whitespace-pre-wrap"></article>
+        <article id="chapter-content"
+                 class="prose mt-3 text-sm whitespace-pre-wrap"
+                 style="font-family: var(--font-serif); line-height: var(--leading-loose); font-size: var(--text-base)"></article>
       </details>
+      <!-- D11 块 C：缺章 fallback 占位（默认隐藏，JS 触发显示） -->
+      <div id="chapter-missing-fallback" class="reader-missing-chapter" style="display:none;" role="status" aria-live="polite">
+        <div class="reader-missing-icon" aria-hidden="true">📖</div>
+        <h2 class="reader-missing-title">章节录入中</h2>
+        <p class="reader-missing-msg">本书的章节内容正在录入中，请稍后再来。</p>
+        <p class="reader-missing-detail">已规划 <span data-mc-total>0</span> 章，当前 0 章可读</p>
+        <a href="library.html" class="reader-missing-back">← 返回书库</a>
+      </div>
     </section>
 
-    <!-- ========== 4 Agent Tab ========== -->
+    <!-- D11 块 C：缺章 fallback 内联样式（与 style.css token 体系一致） -->
+    <style>
+      .reader-missing-chapter {
+        max-width: 600px;
+        margin: 48px auto;
+        text-align: center;
+        padding: var(--space-8, 2rem) var(--space-6, 1.5rem);
+        background: var(--paper-100, #f5e6d3);
+        border: 1px solid var(--paper-200, #e8d5b7);
+        border-radius: var(--radius-lg, 0.75rem);
+        font-family: var(--font-sans, inherit);
+        box-sizing: border-box;
+      }
+      .reader-missing-icon {
+        font-size: 56px;
+        line-height: 1;
+        margin-bottom: var(--space-4, 1rem);
+      }
+      .reader-missing-title {
+        font-size: var(--text-xl, 1.25rem);
+        font-weight: var(--weight-semibold, 600);
+        margin: 0 0 var(--space-3, 0.75rem);
+        color: var(--ink-900, #1a1a1a);
+        line-height: var(--leading-snug, 1.35);
+      }
+      .reader-missing-msg {
+        color: var(--ink-700, #3d3d3d);
+        line-height: var(--leading-relaxed, 1.65);
+        margin: 0 0 var(--space-2, 0.5rem);
+        font-size: var(--text-base, 1rem);
+      }
+      .reader-missing-detail {
+        font-size: var(--text-sm, 0.875rem);
+        color: var(--ink-500, #737373);
+        margin: 0 0 var(--space-6, 1.5rem);
+      }
+      .reader-missing-back {
+        display: inline-block;
+        padding: 10px 24px;
+        background: var(--ink-900, #1a1a1a);
+        color: var(--paper-50, #fafaf7);
+        text-decoration: none;
+        border-radius: var(--radius-md, 0.5rem);
+        font-size: var(--text-sm, 0.875rem);
+        transition: background var(--duration-fast, 150ms) var(--ease-out, ease);
+      }
+      .reader-missing-back:hover {
+        background: var(--ink-700, #3d3d3d);
+      }
+    </style>
+
+    <!-- ========== 4 Agent Tab（D7-2 v2：试试问移出 · 商业级网格）========== -->
     <section class="mb-6">
       <div class="flex items-center gap-3 mb-4">
-        <h2 class="text-lg font-semibold">4 Agent 陪读</h2>
+        <h2 class="font-semibold"
+            style="font-size: var(--text-xl); line-height: var(--leading-snug)">4 Agent 陪读</h2>
         <span class="text-xs text-ink-500">（D2 · DeepSeek v4-flash）</span>
       </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button class="agent-tab agent-avatar active" data-agent="lingdu_ren">
-          <span class="emoji">📖</span>
-          <span class="name">领读人</span>
-        </button>
-        <button class="agent-tab agent-avatar" data-agent="sugeladuo">
-          <span class="emoji">🤔</span>
-          <span class="name">苏格拉底</span>
-        </button>
-        <button class="agent-tab agent-avatar" data-agent="huashi">
-          <span class="emoji">🎨</span>
-          <span class="name">画师</span>
-        </button>
-        <button class="agent-tab agent-avatar" data-agent="jinjubushou">
-          <span class="emoji">✍️</span>
-          <span class="name">金句捕手</span>
-        </button>
+      <div class="agent-grid">
+        <div class="agent-col" data-agent-id="lingdu_ren">
+          <button class="agent-card active" data-agent="lingdu_ren" role="tab" aria-selected="true">
+            <div class="agent-emoji-frame">📖</div>
+            <div class="agent-header">
+              <div class="agent-name">领读人</div>
+              <div class="agent-persona">拆书匠人</div>
+            </div>
+            <div class="agent-task">拆结构 · 引原句 · 抛今天就能用的引导问题</div>
+          </button>
+          <div class="try-ask-list" data-for="lingdu_ren">
+            <button class="try-ask-btn" data-ask="这一章主要讲什么？" aria-label="试试问：这一章主要讲什么？">💬 这一章主要讲什么？</button>
+            <button class="try-ask-btn" data-ask="作者到底想表达什么？" aria-label="试试问：作者到底想表达什么？">💬 作者到底想表达什么？</button>
+          </div>
+        </div>
+        <div class="agent-col" data-agent-id="sugeladuo">
+          <button class="agent-card" data-agent="sugeladuo" role="tab" aria-selected="false">
+            <div class="agent-emoji-frame">🤔</div>
+            <div class="agent-header">
+              <div class="agent-name">苏格拉底</div>
+              <div class="agent-persona">追问老头</div>
+            </div>
+            <div class="agent-task">5Why 扎心追问 · 反向论证 · 戳破假设</div>
+          </button>
+          <div class="try-ask-list" data-for="sugeladuo">
+            <button class="try-ask-btn" data-ask="我说的对吗？追问" aria-label="试试问：我说的对吗？追问">💬 我说的对吗？追问</button>
+            <button class="try-ask-btn" data-ask="反过来呢？" aria-label="试试问：反过来呢？">💬 反过来呢？</button>
+          </div>
+        </div>
+        <div class="agent-col" data-agent-id="huashi">
+          <button class="agent-card" data-agent="huashi" role="tab" aria-selected="false">
+            <div class="agent-emoji-frame">🎨</div>
+            <div class="agent-header">
+              <div class="agent-name">画师</div>
+              <div class="agent-persona">画面搭子</div>
+            </div>
+            <div class="agent-task">原句作画 · 方块图 · 场景类比 · 今天画</div>
+          </button>
+          <div class="try-ask-list" data-for="huashi">
+            <button class="try-ask-btn" data-ask="给个生活例子" aria-label="试试问：给个生活例子">💬 给个生活例子</button>
+            <button class="try-ask-btn" data-ask="画个方块图看看" aria-label="试试问：画个方块图看看">💬 画个方块图看看</button>
+          </div>
+        </div>
+        <div class="agent-col" data-agent-id="jinjubushou">
+          <button class="agent-card" data-agent="jinjubushou" role="tab" aria-selected="false">
+            <div class="agent-emoji-frame">✍️</div>
+            <div class="agent-header">
+              <div class="agent-name">金句捕手</div>
+              <div class="agent-persona">捞金句的搭子</div>
+            </div>
+            <div class="agent-task">挑一句 · 引原句 · 写感悟 · 出场景卡</div>
+          </button>
+          <div class="try-ask-list" data-for="jinjubushou">
+            <button class="try-ask-btn" data-ask="挑一句最触动的" aria-label="试试问：挑一句最触动的">💬 挑一句最触动的</button>
+            <button class="try-ask-btn" data-ask="给个场景卡" aria-label="试试问：给个场景卡">💬 给个场景卡</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -119,11 +229,7 @@
       </div>
 
       <!-- 消息流 -->
-      <div id="chat-stream" class="space-y-3 mb-4 max-h-96 overflow-y-auto">
-        <div class="chat-bubble agent">
-          你好！我是 <b>领读人</b>，这一章我先帮你梳理脉络。选好书和章节后，把你的疑问或想讨论的内容发给我。
-        </div>
-      </div>
+      <div id="chat-stream" class="space-y-3 mb-4 max-h-96 overflow-y-auto"></div>
 
       <!-- 输入区 -->
       <div class="flex gap-2">
@@ -136,28 +242,26 @@
     <!-- ========== 思考题 ========== -->
     <section class="mb-6">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold">本章思考题</h2>
-        <span class="text-xs text-ink-500">3-5 道 · 答完生成笔记</span>
+        <h2 class="font-semibold"
+            style="font-size: var(--text-xl); line-height: var(--leading-snug)">本章思考题</h2>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-ink-500" id="questions-meta">3-5 道 · 答完生成笔记</span>
+          <button id="reload-questions" type="button"
+                  class="text-xs px-2 py-1 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900"
+                  title="重新生成思考题（基于当前对话历史）">
+            🔄 重新生成
+          </button>
+        </div>
       </div>
       <div id="question-list">
-        <div class="question-card" data-q-index="1">
-          <div class="flex items-start mb-2">
-            <span class="q-num">1</span>
-            <p class="text-sm text-ink-900 flex-1" data-q-text>这一章的核心主张是什么？你能用 1 句话概括吗？</p>
-          </div>
-          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
+        <!-- D12.13-A · 思考题改为 LLM 动态生成；保留 1 个空模板 + 加载占位 -->
+        <div id="questions-loading" class="text-xs text-ink-500 py-4 text-center">
+          🌀 思考题生成中…
         </div>
-        <div class="question-card" data-q-index="2">
+        <div class="question-card hidden" data-q-index="__TEMPLATE__" id="question-card-template">
           <div class="flex items-start mb-2">
-            <span class="q-num">2</span>
-            <p class="text-sm text-ink-900 flex-1" data-q-text>作者为什么这样论证？如果是你，会怎么写？</p>
-          </div>
-          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
-        </div>
-        <div class="question-card" data-q-index="3">
-          <div class="flex items-start mb-2">
-            <span class="q-num">3</span>
-            <p class="text-sm text-ink-900 flex-1" data-q-text>这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？</p>
+            <span class="q-num">__NUM__</span>
+            <p class="text-sm text-ink-900 flex-1" data-q-text  style="line-height: var(--leading-relaxed)"></p>
           </div>
           <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
         </div>
@@ -234,13 +338,33 @@
 
       // 3. 处理 ?id=... 入参
       const urlBookId = App.getQueryParam('id');
-      if (urlBookId && allBooks.find(b => b.id === urlBookId)) {
-        bookSelectEl.value = urlBookId;
-        loadBook(urlBookId);
-        App.track('chapter_read', { bookId: urlBookId, chapter: 0, source: 'deep_link' });
+      const urlChapter = App.getQueryParam('chapter');
+      if (urlBookId) {
+        const _found = allBooks.find(b => b.id === urlBookId);
+        if (_found) {
+          bookSelectEl.value = urlBookId;
+          loadBook(urlBookId);
+          App.track('chapter_read', { bookId: urlBookId, chapter: 0, source: 'deep_link' });
+        } else {
+          // D11 块 C：?id= 指向不存在的书 → 缺章 fallback
+          bookTitleEl.textContent = '未找到该书';
+          showChapterFallback({ title: urlBookId, totalPlanned: 0 });
+        }
       }
 
       // 4. 事件
+      // D8-2 v3.3 fix-15: 顶部"生成笔记"按钮带当前书和章节跳转
+      document.getElementById('top-go-workshop')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentBook) {
+          const _bookId = encodeURIComponent(currentBook.id);
+          const _chapter = currentChapter;
+          location.href = `workshop.html?id=${_bookId}&chapter=${_chapter}`;
+        } else {
+          location.href = 'workshop.html';
+        }
+      });
+
       bookSelectEl.addEventListener('change', (e) => {
         if (e.target.value) {
           loadBook(e.target.value);
@@ -249,14 +373,27 @@
       });
 
       chapterSelectEl.addEventListener('change', (e) => {
+        const prevChapter = currentChapter;  // 记录切前章节
         currentChapter = parseInt(e.target.value, 10) || 0;
         window.__readerState.currentChapter = currentChapter;
+        // P2 · 2026-06-10 主公 dogfooding 修复：切章节时清空 chatHistory（仅当前 agent）
+        // - 防 LLM 被之前章节对话误导（原 chatHistory 按 bookId 隔离，不按 chapter）
+        // - 其他 3 个 agent 历史保留
+        // - 立即 save 到 localStorage
+        if (prevChapter !== currentChapter && typeof window.__p2ClearChatForCurrentAgent === 'function') {
+          window.__p2ClearChatForCurrentAgent();
+        }
         // 通知 reader.js 章节变了
         if (typeof window.onChapterChange === 'function') window.onChapterChange(currentChapter);
         updateProgress();
         loadChapterContent();
         // P1-B 修复：切章节后加载该章节的思考题答案
         loadThinkingAnswers();
+        // D12.13-A · 切章节后重新生成思考题
+        if (typeof window.__p2ReloadQuestions === 'function') {
+          // 给内嵌脚本 loadThinkingAnswers 一点点时间（同步）后再触发
+          setTimeout(() => window.__p2ReloadQuestions(), 0);
+        }
         if (currentBook) App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
       });
 
@@ -279,25 +416,69 @@
         // 恢复进度
         const prog = App.getProgress(bookId);
         currentChapter = prog.chapterIndex || 0;
+        // D8-1 v3.1 fix-8: ?chapter= 解析（workshop 返回陪读时携带）
+        const _urlChNum = parseInt(urlChapter, 10);
+        if (Number.isInteger(_urlChNum) && _urlChNum >= 0 && _urlChNum < totalCh) {
+          currentChapter = _urlChNum;
+        }
         window.__readerState.currentChapter = currentChapter;
         if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
         updateProgress();
         loadChapterContent();
         // P1-B 修复：切书后加载该书的思考题答案
         loadThinkingAnswers();
+        // D12.13-A · 切书后重新生成思考题
+        if (typeof window.__p2ReloadQuestions === 'function') {
+          setTimeout(() => window.__p2ReloadQuestions(), 0);
+        }
       }
 
       // === 方案 5 · 最小版：右侧折叠面板加载章节原文 ===
+      // === D11 块 C：缺章 fallback 辅助函数 ===
+      // 切换"原文详情"与"缺章占位"的互斥显示
+      function showChapterFallback({ title, totalPlanned }) {
+        const wrap = document.getElementById('chapter-content-wrap');
+        const details = document.getElementById('chapter-details');
+        const fallback = document.getElementById('chapter-missing-fallback');
+        if (!wrap || !fallback) return;
+        // 隐藏折叠面板主体
+        if (details) details.style.display = 'none';
+        // 填充文案
+        const msgEl = fallback.querySelector('.reader-missing-msg');
+        const totalEl = fallback.querySelector('[data-mc-total]');
+        if (msgEl) {
+          msgEl.textContent = title
+            ? `《${title}》的章节内容正在录入中，请稍后再来。`
+            : '本书的章节内容正在录入中，请稍后再来。';
+        }
+        if (totalEl) totalEl.textContent = String(totalPlanned || 0);
+        // 展开 fallback
+        fallback.style.display = 'block';
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function hideChapterFallback() {
+        const details = document.getElementById('chapter-details');
+        const fallback = document.getElementById('chapter-missing-fallback');
+        if (fallback) fallback.style.display = 'none';
+        if (details) details.style.display = '';
+      }
+
       async function loadChapterContent() {
         const container = document.getElementById('chapter-content');
         const wrap = document.getElementById('chapter-content-wrap');
         if (!container || !wrap || !currentBook) return;
         // 优先用 currentBook.mdChapters[currentChapter]，否则用 books.json 的 mdPath 字段
         const md = currentBook.mdChapters?.[currentChapter] || currentBook.mdPath;
+        // --- D11 块 C 防御性兜底 ---
+        // 场景 A：书层没规划章层（mdChapters 缺失或为空）
         if (!md) {
+          hideChapterFallback();
           container.innerHTML = '<p class="text-xs text-ink-500">（本书暂无章节正文，可继续陪读对话）</p>';
           return;
         }
+        // 加载中：恢复折叠面板 + 清空 fallback
+        hideChapterFallback();
         container.innerHTML = '<p class="text-xs text-ink-500">加载中…</p>';
         try {
           const r = await fetch(md);
@@ -308,7 +489,12 @@
           const details = document.getElementById('chapter-details');
           if (details) details.open = true;
         } catch (e) {
-          container.innerHTML = `<p class="text-xs text-accent-500">章节加载失败：${e.message}</p>`;
+          // --- D11 块 C 缺章 fallback（友好占位）---
+          console.warn('[reader] 章节加载失败，进入 fallback', e);
+          showChapterFallback({
+            title: currentBook.title,
+            totalPlanned: (currentBook.mdChapters && currentBook.mdChapters.length) || currentBook.chapters || 0,
+          });
         }
       }
 
@@ -328,7 +514,7 @@
         }
       }
 
-      // 6. Agent Tab 切换
+      // 6. Agent Tab 切换（aria-selected 同步在 reader.js switchAgent 中处理）
       document.querySelectorAll('.agent-tab').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('.agent-tab').forEach(b => b.classList.remove('active'));
@@ -339,13 +525,8 @@
         });
       });
 
-      // 7. 发送消息：已由 reader.js 接管（v2 · 2026-06-09）
-      //    - chat-send 按钮 click  → reader.js 的 sendMessage()
-      //    - chat-input Enter      → reader.js 的 sendMessage()
-      //    - 内嵌脚本不再注册 handler，避免双触发
-      //    - chatHistory / appendBubble 由 reader.js 管理
-
-      // 8. 去笔记工坊：保存当前章节思考题回答
+      // 7. 发送消息：已由 reader.js 接管
+      // 8. 去笔记工坊
       goWorkshopBtn.addEventListener('click', () => {
         const answers = Array.from(document.querySelectorAll('.answer-input'))
           .map((el, i) => ({ qIndex: i + 1, answer: el.value.trim() }))
@@ -357,17 +538,18 @@
             chapter: currentChapter,
             agent: currentAgent,
             answers,
-            chatHistory: chatHistory.slice(-20), // 保留最近 20 条
+            chatHistory: chatHistory.slice(-20),
             template: null,
           });
           App.track('note_generate', { bookId: currentBook.id, chapter: currentChapter, action: 'goto_workshop' });
         }
-        location.href = 'workshop.html';
+        const _bookIdParam = currentBook ? encodeURIComponent(currentBook.id) : '';
+        const _chapterParam = currentChapter;
+        location.href = `workshop.html?bookId=${_bookIdParam}&chapter=${_chapterParam}`;
       });
 
-      // 9. P1-B 修复（2026-06-09 吕玲绮）：思考题答案进 localStorage，sendMessage 时拼上下文
-      //    key 格式：readdeep.thinkingAnswers.{bookId} → {chapter: {qIndex: {qText, answer}}}
-      const THINKING_KEY = (bookId) => `readdeep.thinkingAnswers.${bookId}`;
+      // 9. P1-B 修复：思考题答案
+      function THINKING_KEY(bookId) { return `readdeep.thinkingAnswers.${bookId}`; }
 
       function getThinkingAnswers() {
         if (!currentBook) return [];
@@ -407,14 +589,29 @@
         });
       }
 
-      // 绑 input 事件（每次输入就存，不依赖发送）
       document.querySelectorAll('.answer-input').forEach(ta => {
         ta.addEventListener('input', saveThinkingAnswers);
       });
+
+      // D12.13-A · 暴露给 reader.js：动态渲染思考题后重新挂 input 监听
+      window.__readerSaveAnswersInit = function () {
+        document.querySelectorAll('.answer-input').forEach(ta => {
+          // 避免重复绑：先移除（如果能拿到 listener 引用最好，但这里简单粗暴先看 dataset）
+          if (ta.dataset.saveBound === '1') return;
+          ta.addEventListener('input', saveThinkingAnswers);
+          ta.dataset.saveBound = '1';
+        });
+      };
     });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] SW registered:', reg.scope))
+          .catch(err => console.error('[PWA] SW failed:', err));
+      });
+    }
   </script>
 </body>
 </html>
-
-
-

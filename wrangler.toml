@@ -3,9 +3,28 @@ main = "src/index.js"
 compatibility_date = "2024-09-23"
 
 # Workers Assets (static resources)
+# v4-2050: html_handling = "none" 关闭 assets 的自动 .html 307 redirect
+# 原因：assets 默认会把 /reader.html 307 redirect 到 /reader，
+#       跳转后返回的响应带默认 cache 头，不走我们的 overrideHTMLCacheControl。
+#       我们要的是：请求 /reader.html → 直接 hit → 我返回 no-store 头
+# not_found_handling = "none" 关闭 SPA fallback
 [assets]
 directory = "./public"
 binding = "ASSETS"
+html_handling = "none"
+not_found_handling = "none"
+
+# D8-2 · Durable Object 队列（异步生成）
+# 命名空间：GENERATION_QUEUE
+# DO 类：WorkshopTaskDO（src/queue.js）
+[[durable_objects.bindings]]
+name = "GENERATION_QUEUE"
+class_name = "WorkshopTaskDO"
+
+# DO 迁移（首次部署）
+[[migrations]]
+tag = "v1"
+new_classes = ["WorkshopTaskDO"]
 
 [vars]
 AGENTS_VERSION = "v2.2"
@@ -15,3 +34,6 @@ P2_PHASE = "D2-0-1-dogfooding"
 
 [observability]
 enabled = true
+
+# P2-J PWA · Service Worker 头部配置已迁移到 public/_headers 文件
+# （Cloudflare Pages 标准方式，避免 wrangler.toml 配置冲突）

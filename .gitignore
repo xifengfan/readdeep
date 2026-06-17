@@ -10,11 +10,25 @@ secrets/
 node_modules/
 npm-debug.log*
 
+# Wrangler local state (D14)
+.wrangler/
+
 # OS / Editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Cache
+agent_reach_cache/
+
+# Backups & logs (D14)
+*.bak-*
+*.bak/
+*.err.log
+*.log
+python-server.*.log
+wrangler-dev.*.log
 
 # P2 internal
 00-今日状态-*.md

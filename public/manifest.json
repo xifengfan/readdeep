@@ -1,0 +1,57 @@
+{
+  "name": "读透 ReadDeep · AI 陪读",
+  "short_name": "读透",
+  "description": "4 Agent 陪你精读经典，主公人格化 IP 的读书笔记平台",
+  "start_url": "./library.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#faf8f3",
+  "theme_color": "#1a1a1a",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["books", "education", "lifestyle"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "书库",
+      "short_name": "书库",
+      "description": "浏览所有书籍",
+      "url": "./library.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "陪读室",
+      "short_name": "陪读",
+      "description": "与 4 Agent 一起精读",
+      "url": "./reader.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "笔记工坊",
+      "short_name": "工坊",
+      "description": "生成 AI 陪读笔记",
+      "url": "./workshop.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

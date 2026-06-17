@@ -10,5 +10,9 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "https-proxy-agent": "^9.1.0",
+    "socks-proxy-agent": "^10.1.0"
   }
 }

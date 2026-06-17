@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-06-15T09:30:00+08:00",
+  "source": "P2-readdeep D10 块A 公版书 19 本补全",
+  "note": "19/19 全部成功，无 fallback",
+  "completed_books": [
+    "pd-002 道德经",
+    "pd-003 庄子",
+    "pd-004 孟子",
+    "pd-005 大学",
+    "pd-006 中庸",
+    "pd-007 诗经",
+    "pd-008 楚辞",
+    "pd-009 史记",
+    "pd-010 资治通鉴",
+    "pd-011 孙子兵法",
+    "pd-012 三十六计",
+    "pd-013 三国演义",
+    "pd-014 水浒传",
+    "pd-015 西游记",
+    "pd-026 围炉夜话",
+    "pd-027 增广贤文",
+    "pd-028 千字文",
+    "pd-029 三字经",
+    "pd-030 百家姓"
+  ],
+  "failed_books": [],
+  "a2_continued": {
+    "version": "2.0",
+    "generated_at": "2026-06-15T17:15:00+08:00",
+    "source": "P2-readdeep D10 块A2 文学经典剩 5 本补全（续派 lusu 15:30 开工）",
+    "note": "5/5 全部成功，无 fallback。所有 .md 文件从 1-1.6 KB 旧版覆盖为 7-20 KB 新版。",
+    "completed_books": [
+      "pd-021 宋词三百首  20160 bytes (7206 chars, 15 类)",
+      "pd-022 了凡四训    11676 bytes (4413 chars, 4 篇+2 附录)",
+      "pd-023 传习录      15984 bytes (6134 chars, 3 卷+2 附录)",
+      "pd-024 菜根谭      12820 bytes (4832 chars, 2 集+2 附录)",
+      "pd-025 小窗幽记    18066 bytes (6814 chars, 4 集)"
+    ],
+    "failed_books": [],
+    "elapsed_minutes": 105,
+    "agent": "lusu (subagent 派工 agentId 修正版)",
+    "deliverable_format": "纯知识 + 原文引述，无外部 Z-Library 抓取（训练数据内公版）",
+    "quality_benchmark": "最小 11.7 KB / 最大 20.2 KB（对标上午 19 本 8.7-23.4 KB，达标）"
+  }
+}

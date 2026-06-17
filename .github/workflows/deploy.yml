@@ -1,0 +1,48 @@
+# P2-readdeep · Cloudflare Workers 自动部署
+# 触发：push 到 main 分支
+# 来源：https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/
+# 关键点：用官方 cloudflare/wrangler-action@v3，不要裸跑 wrangler CLI
+# DEEPSEEK_API_KEY 通过 secrets 注入（wrangler secret put 由 action 自动调用）
+
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 允许在 Actions 页面手动触发，方便调试
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false # 部署排队而非取消，避免半成品上生产
+
+jobs:
+  deploy:
+    name: Deploy readdeep to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          # Cloudflare 认证
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+          # 锁定 wrangler 版本（与本地一致，避免 v4 默认行为差异）
+          # 本地实测 wrangler 3.x 兼容本项目 compatibility_date = 2024-09-23
+          wranglerVersion: "3.91.0"
+
+          # 把 DEEPSEEK_API_KEY 作为 Worker Secret 注入
+          # action 会自动调用 wrangler secret put DEEPSEEK_API_KEY
+          secrets: |
+            DEEPSEEK_API_KEY
+          env:
+            DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}

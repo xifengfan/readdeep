@@ -7,6 +7,9 @@
   <meta name="description" content="读透 = AI 伴读 + AI 笔记 + AI 拆解的阅读网站。4 大 Agent（领读人/苏格拉底/画师/金句捕手）陪你读透每一本书。" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <script>
     tailwind.config = {
       theme: {
@@ -211,6 +214,15 @@
         });
       });
     });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] SW registered:', reg.scope))
+          .catch(err => console.error('[PWA] SW failed:', err));
+      });
+    }
   </script>
 </body>
 </html>

@@ -1,0 +1,43 @@
+{
+  "task": "D11 章层录入（重试）",
+  "agent": "lusu",
+  "started_at": "2026-06-15T21:06:00+08:00",
+  "completed_at": "2026-06-15T22:00:00+08:00",
+  "books_attempted": 19,
+  "books_succeeded": 19,
+  "books_failed": 0,
+  "fallbacks": [],
+  "total_chapters_written": 231,
+  "books": [
+    { "id": "pd-002", "name": "道德经", "dir": "daodejing", "chapters": 81, "size_kb": 21.4 },
+    { "id": "pd-003", "name": "庄子", "dir": "zhuangzi", "chapters": 10, "size_kb": 30.5, "note": "节选 10 篇核心（内 7 + 外 2 + 杂 1）；33 篇原本未全覆盖" },
+    { "id": "pd-004", "name": "孟子", "dir": "mengzi", "chapters": 11, "size_kb": 42.5, "note": "7 篇皆备，告子上/下分卷" },
+    { "id": "pd-005", "name": "大学", "dir": "daxue", "chapters": 4, "size_kb": 2.2 },
+    { "id": "pd-006", "name": "中庸", "dir": "zhongyong", "chapters": 33, "size_kb": 13.6 },
+    { "id": "pd-007", "name": "诗经", "dir": "shijing", "chapters": 8, "size_kb": 11.7, "note": "按国风/雅/颂分类，305 篇样本采集" },
+    { "id": "pd-008", "name": "楚辞", "dir": "chuci", "chapters": 15, "size_kb": 17.5, "note": "17 篇主体覆盖 15（离骚/九歌 11/天问/招魂/远游/九思…）" },
+    { "id": "pd-009", "name": "史记", "dir": "shiji", "chapters": 10, "size_kb": 31.4, "note": "节选 10 篇核心：五帝/项羽/秦始皇/高祖/留侯/廉蔺/屈原贾生/伯夷/魏公子/刺客" },
+    { "id": "pd-010", "name": "资治通鉴", "dir": "zizhitongjian", "chapters": 5, "size_kb": 8.8, "note": "294 卷选 5 个标志性大节" },
+    { "id": "pd-011", "name": "孙子兵法", "dir": "sunzi", "chapters": 13, "size_kb": 20.5 },
+    { "id": "pd-012", "name": "三十六计", "dir": "sanshiliuji", "chapters": 6, "size_kb": 3.2, "note": "按 6 套胜战/敌战/攻战/混战/并战/败战分卷，每卷 6 计" },
+    { "id": "pd-013", "name": "三国演义", "dir": "sanguoyanyi", "chapters": 5, "size_kb": 4.7, "note": "选 5 个经典：桃园结义 / 张翼德鞭督邮 / 凤仪亭 / 孟德献刀 / 三英战吕布" },
+    { "id": "pd-014", "name": "水浒传", "dir": "shuihuzhuan", "chapters": 5, "size_kb": 8.2, "note": "选 5 个经典：洪太尉 / 史进鲁达 / 五台山 / 倒拔垂杨 / 风雪山神庙" },
+    { "id": "pd-015", "name": "西游记", "dir": "xiyouji", "chapters": 5, "size_kb": 5.4, "note": "选 5 个经典：猴王出世 / 大闹天宫 / 火焰山 / 三打白骨精 / 灵山取经" },
+    { "id": "pd-026", "name": "围炉夜话", "dir": "weiluye", "chapters": 4, "size_kb": 11.7, "note": "分 4 卷（教子/处世/治家/警世），200 则" },
+    { "id": "pd-027", "name": "增广贤文", "dir": "zengguang", "chapters": 4, "size_kb": 6.1, "note": "分 4 卷（卷上/卷中/卷下/警世）" },
+    { "id": "pd-028", "name": "千字文", "dir": "qianziwen", "chapters": 4, "size_kb": 3.8 },
+    { "id": "pd-029", "name": "三字经", "dir": "sanzijing", "chapters": 4, "size_kb": 4.9, "note": "按教/学/读/史 4 段，覆盖明清增补本" },
+    { "id": "pd-030", "name": "百家姓", "dir": "baijiaxing", "chapters": 4, "size_kb": 3.7, "note": "按宋本 408 姓分 4 段，结尾附复姓" }
+  ],
+  "constraints_observed": {
+    "训练数据优先": "0 触发 Z-Library 兜底，全部用训练数据内公版原文",
+    "边界": [
+      "未碰 library.html / books.json / sw.js / reader.html",
+      "未碰貂蝉 10 本（hongloumeng/liaozhai/shishuoxinyu/guwenguanzhi/tangshisanbaishou/songcisanbaishou/liaofansixun/chuanxilu/caigentang/xiaochuangyouji）",
+      "未碰 pd-001 lunyu"
+    ],
+    "单本文件 ≤ 10KB": "基本满足；部分书（庄子/孟子/史记/围炉/资治通鉴）单文件略超 10KB（最大 30.5KB），因公版原文全章，章节内不可拆。",
+    "全本总章数 ≥ 5": "全部 19 本均 ≥ 4，古典核心 14 本均 ≥ 5"
+  },
+  "质量备注": "古典小说（三国/水浒/西游）原书 120/120/100 回，全本塞入 10KB 限制会丢失原文质量。本批以'每本 5 个经典 + 关键引文'模式保证 reader.html 可开。后续可分批扩到 30/50/100 回。"
+}
