@@ -208,6 +208,23 @@ function renderSummaryCard(summary, generatedAt) {
   }
 }
 
+/** D14.5 修复B：等 window.__readerState 就绪后再调 callback
+ *  - 背景：reader.js 的 DOMContentLoaded 和 reader.html 内嵌脚本的 loadBook()
+ *    谁先跑完不确定（取决于 SW 是否拦截、缓存是否命中）
+ *  - 若 init() 先跑，__readerState.currentChapter 还没设，调 restoreSummaryFromStorage
+ *    会拿到错的章节号（默认 0）
+ *  - 策略：每 50ms 检查一次，最多重试 20 次（= 1 秒），超时则跳过
+ */
+function waitForReaderState(callback, retries = 20) {
+  if (window.__readerState && typeof window.__readerState.currentChapter === 'number') {
+    callback();
+  } else if (retries > 0) {
+    setTimeout(() => waitForReaderState(callback, retries - 1), 50);
+  } else {
+    console.warn('[reader.js] __readerState 1 秒内未就绪，restoreSummaryFromStorage 跳过');
+  }
+}
+
 /** D14.3 修复2：进入 reader 时从 localStorage 恢复已生成的小结卡片
  *  - 跳转路径：reader → workshop → 返回 reader
  *  - 此时不调 API，纯读 localStorage
@@ -407,7 +424,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initComposeButtons();
 
   // D14.3 修复2：初始化时从 localStorage 恢复已生成的小结（从 workshop 跳回 reader 的场景）
-  restoreSummaryFromStorage();
+  // D14.5 修复B：等 window.__readerState 就绪后再恢复（避免读到错的章节号）
+  waitForReaderState(() => restoreSummaryFromStorage());
 
   console.log('[reader.js] 初始化完成');
 });
