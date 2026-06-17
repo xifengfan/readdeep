@@ -567,6 +567,38 @@ function renderChat() {
     appendBubble(msg.role === 'user' ? 'user' : 'agent', msg.content);
   });
   stream.scrollTop = stream.scrollHeight;
+  // D14.2 改动 3：渲染后刷新 agent tab 角标
+  renderAgentTabs();
+}
+
+// ========== D14.2 改动 3 · agent tab 角标 ==========
+// 在每个 agent tab 内显示●已聊 N 轮小角标
+function renderAgentTabs() {
+  const counts = countChatsByAgent();
+  // data-agent 原始值是拼音 (lingdu_ren / sugeladuo / huashi / jinjubushou)
+  // AGENT_PINYIN_MAP 反向查 → agent id
+  const reverseMap = {};
+  for (const [py, id] of Object.entries(AGENT_PINYIN_MAP)) {
+    reverseMap[id] = py;
+  }
+  document.querySelectorAll('[data-agent]').forEach(tab => {
+    const raw = tab.dataset.agent;
+    const agentId = AGENT_PINYIN_MAP[raw] || raw;
+    const n = counts[agentId] || 0;
+    let badge = tab.querySelector('.agent-tab-badge');
+    if (n <= 0) {
+      if (badge) badge.remove();
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'agent-tab-badge';
+      badge.setAttribute('aria-label', `已聊 ${n} 轮`);
+      tab.appendChild(badge);
+    }
+    badge.textContent = `●已聊 ${n} 轮`;
+    badge.setAttribute('aria-label', `已聊 ${n} 轮`);
+  });
 }
 
 // D14.1 · 思考题已删：chatHistory 拼进 bookContext 的旧逻辑不再需要

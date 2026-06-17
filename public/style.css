@@ -821,3 +821,22 @@ button, a { transition: all var(--duration-fast) var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* === D14.2 · Agent tab 角标（●已聊 N 轮） === */
+.agent-tab-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--ink-500, #6b6b6b);
+  background: var(--paper-50, #faf8f5);
+  padding: 2px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--paper-200, #e5e1d8);
+  line-height: 1.2;
+  pointer-events: none;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1;
+}
+.agent-card { position: relative; } /* 让角标绝对定位生效 */
