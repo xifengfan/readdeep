@@ -43,9 +43,6 @@ jobs:
           # 本地实测 wrangler 3.x 兼容本项目 compatibility_date = 2024-09-23
           wranglerVersion: "3.91.0"
 
-          # D14 pre-flight: 临时跑 whoami 验证 token，验证成功后再改回 deploy
-          command: whoami
-
           # DEEPSEEK_API_KEY 不通过 workflow 推（避免 first-deploy 死锁：
           # action 会在 deploy 之前先调 wrangler secret put，而 worker 还不存在
           # 导致 "Failed to upload secrets"）。
