@@ -531,7 +531,6 @@
             bookTitle: currentBook.title,
             chapter: currentChapter,
             agent: currentAgent,
-            chatHistory: chatHistory.slice(-20),
             template: null,
           });
           App.track('note_generate', { bookId: currentBook.id, chapter: currentChapter, action: 'goto_workshop' });
