@@ -2,7 +2,7 @@
 # 触发：push 到 main 分支
 # 来源：https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/
 # 关键点：用官方 cloudflare/wrangler-action@v3，不要裸跑 wrangler CLI
-# DEEPSEEK_API_KEY 通过 secrets 注入（wrangler secret put 由 action 自动调用）
+# DEEPSEEK_API_KEY 在 Cloudflare Dashboard 配（不通过 workflow 推，避免 first-deploy 死锁）
 
 name: Deploy to Cloudflare Workers
 
@@ -40,11 +40,8 @@ jobs:
           # 本地实测 wrangler 3.x 兼容本项目 compatibility_date = 2024-09-23
           wranglerVersion: "3.91.0"
 
-          # 把 DEEPSEEK_API_KEY 作为 Worker Secret 注入
-          # action 会自动调用 wrangler secret put DEEPSEEK_API_KEY
-          secrets: |
-            DEEPSEEK_API_KEY
-
-        # env: 是 step 级（与 uses/with 同级），不是 with 级
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          # DEEPSEEK_API_KEY 不通过 workflow 推（避免 first-deploy 死锁：
+          # action 会在 deploy 之前先调 wrangler secret put，而 worker 还不存在
+          # 导致 "Failed to upload secrets"）。
+          # 该 secret 已在 Cloudflare Dashboard 配好（wrangler.toml 注释有说明），
+          # 部署时 wrangler 会自动从 dashboard 拉下来。
