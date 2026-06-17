@@ -23,8 +23,8 @@ class_name = "WorkshopTaskDO"
 
 # DO 迁移（首次部署）
 [[migrations]]
-tag = "v1"
-new_classes = ["WorkshopTaskDO"]
+tag = "v2"
+new_sqlite_classes = ["WorkshopTaskDO"]
 
 [vars]
 AGENTS_VERSION = "v2.2"
