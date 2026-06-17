@@ -231,6 +231,38 @@
       <!-- 消息流 -->
       <div id="chat-stream" class="space-y-3 mb-4 max-h-96 overflow-y-auto"></div>
 
+      <!-- D14.2 改动 4 · 创作按钮（仅 painter / quote tab 显示） -->
+      <div class="agent-compose-section flex flex-wrap items-center gap-2 mb-3" id="agent-compose-section" style="display: none;">
+        <button id="compose-as-painter" type="button" data-compose-agent="painter"
+                class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+          🎨 基于对话创作（画师视角）
+        </button>
+        <button id="compose-as-quote" type="button" data-compose-agent="quote"
+                class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+          💎 基于对话创作（金句捕手视角）
+        </button>
+      </div>
+
+      <!-- D14.2 改动 4 · 创作结果卡片 -->
+      <div id="compose-card" class="hidden p-4 md:p-5 rounded-lg border border-paper-200 bg-paper-50 mb-3">
+        <div class="flex items-center justify-between mb-2">
+          <span id="compose-card-label" class="text-xs text-ink-500 font-medium">创作结果</span>
+          <button id="compose-card-close" type="button" class="text-xs text-ink-500 hover:text-accent-500">收起</button>
+        </div>
+        <div id="compose-card-content" class="text-sm whitespace-pre-wrap" style="font-family: var(--font-serif); line-height: var(--leading-loose)"></div>
+        <div class="mt-3 flex items-center gap-2 flex-wrap">
+          <button id="compose-copy" type="button"
+                  class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+            📋 复制作品
+          </button>
+          <span id="compose-card-status" class="text-xs text-ink-500"></span>
+        </div>
+      </div>
+      <div id="compose-loading" class="hidden p-4 md:p-5 rounded-lg border border-paper-200 bg-paper-50 mb-3 text-center">
+        <p class="text-sm text-ink-700">🌀 创作中…（最多 30s）</p>
+        <p class="text-xs text-ink-500 mt-2">从对话历史里抽取最有触动的点</p>
+      </div>
+
       <!-- 输入区 -->
       <div class="flex gap-2">
         <textarea id="chat-input" rows="2" placeholder="输入你的问题 / 想法 / 想讨论的段落…"

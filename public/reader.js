@@ -103,7 +103,7 @@ function chatHistoryForAgent(agent) {
 }
 
 // ========== 启动日志（验证脚本是否真加载）==========
-console.log('%c[reader.js] 已加载 · v3.3 · 2026-06-17（+ D14.1 小结替代思考题）', 'color: #c1272d; font-weight: bold;');
+console.log('%c[reader.js] 已加载 · v3.4 · 2026-06-17（+ D14.2 2 角色解锁 + UI 上下文 + tab 角标 + 创作按钮）', 'color: #c1272d; font-weight: bold;');
 
 // ========== D14.1 · 生成小结按钮 + 状态管理 ==========
 // 设计：
@@ -362,6 +362,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSummaryButton();
   updateSummaryButtonState();
 
+  // D14.2 改动 4：绑定"基于对话创作"按钮 + 复制/收起
+  initComposeButtons();
+
   console.log('[reader.js] 初始化完成');
 });
 
@@ -420,6 +423,131 @@ function switchAgent(agent) {
       stream.style.opacity = '1';
     });
   }
+
+  // D14.2 改动 4：切 agent 时显隐"基于对话创作"按钮
+  //   - painter / quote tab 才显示
+  //   - lead / socrates tab 不显示
+  updateComposeSectionVisibility();
+}
+
+// ========== D14.2 改动 4 · 创作模式按钮显隐 ==========
+function updateComposeSectionVisibility() {
+  const sec = document.getElementById('agent-compose-section');
+  if (!sec) return;
+  const show = (currentAgent === 'painter' || currentAgent === 'quote');
+  sec.style.display = show ? 'flex' : 'none';
+  // 顺手把"收起"按钮也清掉（避免切到 lead 后又看到上一次的创作）
+  if (!show) hideComposeCard();
+}
+
+let isComposing = false;
+
+/** 调 /api/compose 拿创作结果 */
+async function callComposeApi(bookId, chapter, agent, history) {
+  const resp = await fetch('/api/compose', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bookId,
+      chapter,
+      agent,
+      chatHistory: history,
+    }),
+  });
+  return await resp.json();
+}
+
+function renderComposeCard(composition, agent, generatedAt) {
+  const card = document.getElementById('compose-card');
+  const content = document.getElementById('compose-card-content');
+  const label = document.getElementById('compose-card-label');
+  const status = document.getElementById('compose-card-status');
+  if (!card || !content) return;
+  content.textContent = composition;
+  if (label) label.textContent = agent === 'painter' ? '🎨 画师视角创作' : '💎 金句捕手创作';
+  if (status && generatedAt) {
+    const d = new Date(generatedAt);
+    const ts = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    status.textContent = `生成于 ${ts}`;
+  }
+  card.classList.remove('hidden');
+}
+
+function hideComposeCard() {
+  const card = document.getElementById('compose-card');
+  const loading = document.getElementById('compose-loading');
+  if (card) card.classList.add('hidden');
+  if (loading) loading.classList.add('hidden');
+}
+
+async function handleCompose(agent) {
+  if (isComposing) return;
+  if (!currentBookId) {
+    alert('请先选书');
+    return;
+  }
+  if (!SUPPORTED_COMPOSE_AGENTS.has(agent)) {
+    console.warn('[reader.js] 创作模式不支持 agent:', agent);
+    return;
+  }
+  const ch = window.__readerState?.currentChapter ?? 0;
+  // 拼 chatHistory（全量 · /api/compose 会自己截断到 40 条）
+  const history = (chatHistory || []).map(m => ({
+    agent: m.agent,
+    role: m.role,
+    content: String(m.content || '').slice(0, 400),
+  }));
+  isComposing = true;
+  const loading = document.getElementById('compose-loading');
+  const card = document.getElementById('compose-card');
+  if (loading) loading.classList.remove('hidden');
+  if (card) card.classList.add('hidden');
+  try {
+    const data = await callComposeApi(currentBookId, ch, agent, history);
+    if (data && data.ok && data.composition) {
+      renderComposeCard(data.composition, data.agent || agent, data.generatedAt);
+      if (typeof App !== 'undefined' && App.track) {
+        App.track('compose_generate', { bookId: currentBookId, chapter: ch, agent });
+      }
+    } else {
+      const errMsg = `[${data?.code || 'ERROR'}] ${data?.error || '创作失败'}`;
+      console.error('[reader.js] /api/compose 错误', data);
+      alert(errMsg);
+    }
+  } catch (e) {
+    console.error('[reader.js] /api/compose 网络错误', e);
+    alert(`网络错误：${e.message}`);
+  } finally {
+    isComposing = false;
+    if (loading) loading.classList.add('hidden');
+  }
+}
+
+const SUPPORTED_COMPOSE_AGENTS = new Set(['painter', 'quote']);
+
+/** 绑定"基于对话创作"按钮（2 个）+ 复制 / 收起 */
+function initComposeButtons() {
+  const btnPainter = document.getElementById('compose-as-painter');
+  const btnQuote = document.getElementById('compose-as-quote');
+  if (btnPainter) btnPainter.addEventListener('click', () => handleCompose('painter'));
+  if (btnQuote) btnQuote.addEventListener('click', () => handleCompose('quote'));
+  const copyBtn = document.getElementById('compose-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const content = document.getElementById('compose-card-content');
+      if (!content) return;
+      const text = content.textContent || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = '✅ 已复制';
+        setTimeout(() => { copyBtn.textContent = '📋 复制作品'; }, 2000);
+      } catch (e) {
+        console.warn('[reader.js] 复制创作失败', e);
+      }
+    });
+  }
+  const closeBtn = document.getElementById('compose-card-close');
+  if (closeBtn) closeBtn.addEventListener('click', hideComposeCard);
 }
 
 // ========== 发送消息 ==========

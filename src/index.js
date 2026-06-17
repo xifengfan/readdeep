@@ -14,6 +14,7 @@ import { agentsHandler } from './agents.js';
 import { workshopHandler } from './workshop.js';
 import { renderCardHandler } from './render-card.js';
 import { summaryHandler } from './summary.js';
+import { composeHandler } from './compose.js';
 import { WorkshopTaskDO } from './queue.js';
 
 // 静态资源兜底
@@ -73,6 +74,10 @@ export default {
     // D14.1 · 4 Agent 对话小结生成（替代旧 thinking-questions）
     if (pathname === '/api/summary') {
       return handleApi(summaryHandler, request, env);
+    }
+    // D14.2 · 画师/金句捕手 创作模式（基于对话生成作品，不改主对话）
+    if (pathname === '/api/compose') {
+      return handleApi(composeHandler, request, env);
     }
     if (false && pathname === '/api/debug') {
       // 临时调试：返回 import 状态
