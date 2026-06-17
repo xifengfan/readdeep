@@ -8,6 +8,10 @@
 //                 - 存储：全量带 agent 字段（4 Agent 共享一数组）
 //                 - 渲染/发请求：按 currentAgent 过滤
 //                 - 切换 agent 不清历史；切书 / 刷新 保留历史
+// v3.3 - 2026-06-17 D14.1：删除思考题相关（UI/函数/接口）；新增"生成小结"按钮
+//                 - 4 Agent 各 ≥1 轮解锁 → 调 /api/summary
+//                 - 小结存 readdeep.summary.{bookId}.{chapter} → workshop 4 模板读它
+//                 - 旧 localStorage key（readdeep.thinkingAnswers.*）保留，不动
 // ================================================
 
 // pinyin → agent id 映射（兼容旧 reader.html 的 data-agent）
@@ -99,180 +103,185 @@ function chatHistoryForAgent(agent) {
 }
 
 // ========== 启动日志（验证脚本是否真加载）==========
-console.log('%c[reader.js] 已加载 · v3.2 · 2026-06-16（+ D12.13-A 动态思考题）', 'color: #c1272d; font-weight: bold;');
+console.log('%c[reader.js] 已加载 · v3.3 · 2026-06-17（+ D14.1 小结替代思考题）', 'color: #c1272d; font-weight: bold;');
 
-// ========== D12.13-A · 动态生成思考题 ==========
-// 调用 /api/thinking-questions，渲染到 #question-list
-// - 成功后：替换 #question-list 内的卡片
-// - 失败时：fallback 到 3 个默认问题（thinking.js 兜底）
-// - 重入保护：避免重复触发（按钮 disabled + 模块级 isLoadingQuestions）
-let isLoadingQuestions = false;
+// ========== D14.1 · 生成小结按钮 + 状态管理 ==========
+// 设计：
+//   - 4 角色 chatHistory 各 ≥ 1 轮 → 启用 #generate-summary
+//   - 切章节 → 重置启用状态（每章节独立计算）
+//   - 章节小结存 localStorage（readdeep.summary.{bookId}.{chapter}）
+//   - 切书时清掉当前可见的 summary card
+// 模块作用域
+let isGeneratingSummary = false;
+let currentChapterForSummary = null;
+const SUMMARY_KEY = (bookId, chapter) => `readdeep.summary.${bookId}.${chapter || 0}`;
 
-const FALLBACK_QUESTIONS = [
-  { qIndex: 1, qText: '这一章的核心主张是什么？你能用 1 句话概括吗？' },
-  { qIndex: 2, qText: '作者为什么这样论证？如果是你，会怎么写？' },
-  { qIndex: 3, qText: '这章的观点，跟你过去读过的哪本书 / 哪个观点冲突或呼应？' },
-];
-
-async function loadDynamicQuestions(bookId, chapter) {
-  if (isLoadingQuestions) {
-    console.log('[reader.js] 思考题正在生成中，跳过重复请求');
-    return;
-  }
-  if (!bookId) {
-    console.warn('[reader.js] loadDynamicQuestions: bookId 为空');
-    return;
-  }
-
-  isLoadingQuestions = true;
-
-  // UI：显示加载占位 + 禁用重生按钮
-  const listEl = document.getElementById('question-list');
-  const loadingEl = document.getElementById('questions-loading');
-  const reloadBtn = document.getElementById('reload-questions');
-  const metaEl = document.getElementById('questions-meta');
-  if (reloadBtn) reloadBtn.disabled = true;
-  if (metaEl) metaEl.textContent = '🌀 生成中…';
-
-  // 清掉旧的 question-card（保留 template）
-  if (listEl) {
-    listEl.querySelectorAll('.question-card:not(.hidden)').forEach(el => el.remove());
-  }
-  if (loadingEl) loadingEl.style.display = '';
-
-  try {
-    // 1. 取对话历史：全量 → 转给后端（后端会自己 slice -6）
-    const history = (chatHistory || []).map(m => ({
-      role: m.role,
-      content: String(m.content || '').slice(0, 300),
-    }));
-
-    // 2. 取书 + 章节标题（供 prompt 用）
-    const currentBook = window.__readerState?.currentBook;
-    const bookTitle = currentBook?.title || '当前书';
-    // 章节标题：默认「第 N 章」（后端 getChapterTitle 用同样 fallback）
-    const chapterTitle = `第 ${(Number(chapter) || 0) + 1} 章`;
-
-    // 3. 调 /api/thinking-questions
-    const resp = await fetch('/api/thinking-questions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookId, chapter, bookTitle, chapterTitle, history }),
-    });
-    const data = await resp.json();
-
-    // 4. 拿到题目
-    let questions = [];
-    if (data && data.ok && Array.isArray(data.questions) && data.questions.length > 0) {
-      questions = data.questions;
-    } else {
-      console.warn('[reader.js] 思考题接口未返回有效数据，fallback', data);
-      questions = FALLBACK_QUESTIONS;
+/** 统计 4 Agent 各聊了几轮（agent 字段 + role=assistant 计数） */
+function countChatsByAgent() {
+  const counts = { lead: 0, socrates: 0, painter: 0, quote: 0 };
+  (chatHistory || []).forEach(m => {
+    if (m && m.role === 'assistant' && m.agent && counts[m.agent] !== undefined) {
+      counts[m.agent]++;
     }
-
-    // 5. 渲染：克隆 template
-    renderQuestionCards(questions);
-
-    // 6. 恢复已存的答案（用模块作用域版，不依赖内嵌脚本）
-    _restoreAnswersFromStorage(bookId, chapter);
-
-    // 7. meta 更新
-    if (metaEl) {
-      metaEl.textContent = data?.fallback
-        ? `${questions.length} 道 · 默认版（生成失败，已 fallback）`
-        : `${questions.length} 道 · 答完生成笔记`;
-    }
-  } catch (e) {
-    console.error('[reader.js] loadDynamicQuestions 网络错误', e);
-    renderQuestionCards(FALLBACK_QUESTIONS);
-    if (metaEl) metaEl.textContent = '⚠️ 生成失败，已用默认题';
-  } finally {
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (reloadBtn) reloadBtn.disabled = false;
-    isLoadingQuestions = false;
-  }
-}
-
-/**
- * 渲染 question-card 列表（基于 template 克隆）
- */
-function renderQuestionCards(questions) {
-  const listEl = document.getElementById('question-list');
-  if (!listEl) return;
-  // 删旧卡片
-  listEl.querySelectorAll('.question-card:not(.hidden)').forEach(el => el.remove());
-  const tpl = document.getElementById('question-card-template');
-  if (!tpl) {
-    console.error('[reader.js] 找不到 #question-card-template');
-    return;
-  }
-  questions.forEach((q, i) => {
-    const idx = Number.isInteger(q.qIndex) ? q.qIndex : (i + 1);
-    const text = String(q.qText || '').trim();
-    if (!text) return;
-    const card = tpl.cloneNode(true);
-    card.classList.remove('hidden');
-    card.removeAttribute('id');
-    card.dataset.qIndex = String(idx);
-    const numEl = card.querySelector('.q-num');
-    if (numEl) numEl.textContent = String(idx);
-    const textEl = card.querySelector('[data-q-text]');
-    if (textEl) textEl.textContent = text;
-    listEl.appendChild(card);
   });
-  // 重新挂 answer-input 的 input 监听器（用内嵌脚本的 saveThinkingAnswers）
-  if (typeof window.__readerSaveAnswersInit === 'function') {
-    try { window.__readerSaveAnswersInit(); } catch (_) {}
-  }
+  return counts;
 }
 
-/**
- * 兜底：直接读 localStorage 恢复答案
- */
-function _restoreAnswersFromStorage(bookId, chapter) {
-  try {
-    const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
-    if (!raw) return;
-    const all = JSON.parse(raw);
-    const ch = all[chapter] || {};
-    document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
-      const idx = Number(card.dataset.qIndex);
-      const item = ch[idx];
-      const ta = card.querySelector('.answer-input');
-      if (ta) ta.value = (item && item.answer) || '';
-    });
-  } catch (e) {
-    console.warn('[reader.js] _restoreAnswersFromStorage 失败', e);
-  }
-}
-
-// 暴露给 reader.html 内嵌脚本调用（章节切换 / 重生按钮）
-window.__p2ReloadQuestions = function () {
-  const ch = window.__readerState?.currentChapter;
-  const bookId = currentBookId || window.__readerState?.currentBook?.id;
-  if (!bookId || ch == null) {
-    console.log('[reader.js] 跳过重生思考题：bookId/chapter 缺失');
+/** 4 Agent 都聊过 ≥1 轮 → 启用按钮；否则禁用 */
+function updateSummaryButtonState() {
+  const btn = document.getElementById('generate-summary');
+  const metaEl = document.getElementById('summary-meta');
+  if (!btn) return;
+  if (!currentBookId) {
+    btn.disabled = true;
+    if (metaEl) metaEl.textContent = '请先选书';
     return;
   }
-  loadDynamicQuestions(bookId, ch);
+  const counts = countChatsByAgent();
+  const allMet = Object.values(counts).every(n => n >= 1);
+  btn.disabled = !allMet;
+  if (allMet) {
+    if (metaEl) metaEl.textContent = '可生成 · 4 角色已聊过';
+  } else {
+    const missing = Object.entries(counts).filter(([_, n]) => n < 1).map(([k]) => AGENT_NAME_MAP[k] || k);
+    if (metaEl) metaEl.textContent = `还差：${missing.join(' / ')}`;
+  }
+}
+
+/** 把生成的小结存到 localStorage（供 workshop 4 模板读） */
+function saveSummaryToStorage(bookId, chapter, summary) {
+  if (!bookId) return;
+  try {
+    localStorage.setItem(SUMMARY_KEY(bookId, chapter), summary || '');
+  } catch (e) {
+    console.warn('[reader.js] 存小结失败', e);
+  }
+}
+
+/** 暴露给 workshop.html：读小结 */
+window.__readerReadSummary = function (bookId, chapter) {
+  try {
+    return localStorage.getItem(SUMMARY_KEY(bookId, chapter)) || '';
+  } catch (e) { return ''; }
 };
 
-// 绑定重生按钮
-function initReloadQuestionsButton() {
-  const btn = document.getElementById('reload-questions');
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    if (typeof App !== 'undefined' && App.track) {
-      App.track('questions_reload', { bookId: currentBookId });
-    }
-    window.__p2ReloadQuestions();
+/** 调 /api/summary 拿到小结 */
+async function callSummaryApi(bookId, chapter) {
+  // 组装 chatHistory（4 角色全量 → 限制最近 40 条）
+  const history = (chatHistory || [])
+    .slice(-40)
+    .map(m => ({
+      agent: m.agent,
+      role: m.role,
+      content: String(m.content || '').slice(0, 400),
+    }));
+  const currentBook = window.__readerState?.currentBook;
+  const bookTitle = currentBook?.title || '当前书';
+  const resp = await fetch('/api/summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookId, chapter, bookTitle, chatHistory: history }),
   });
+  return await resp.json();
 }
+
+/** 渲染小结到 #summary-card */
+function renderSummaryCard(summary, generatedAt) {
+  const card = document.getElementById('summary-card');
+  const content = document.getElementById('summary-content');
+  const status = document.getElementById('summary-status');
+  if (!card || !content) return;
+  content.textContent = summary;
+  card.classList.remove('hidden');
+  if (status && generatedAt) {
+    const d = new Date(generatedAt);
+    const ts = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    status.textContent = `生成于 ${ts}`;
+  }
+}
+
+/** 隐藏小结卡片（章节切换时用） */
+function hideSummaryCard() {
+  const card = document.getElementById('summary-card');
+  const loading = document.getElementById('summary-loading');
+  if (card) card.classList.add('hidden');
+  if (loading) loading.classList.add('hidden');
+}
+
+/** 点击"生成小结" */
+async function handleGenerateSummary() {
+  if (isGeneratingSummary) return;
+  if (!currentBookId) return;
+  const ch = window.__readerState?.currentChapter ?? 0;
+  isGeneratingSummary = true;
+  const btn = document.getElementById('generate-summary');
+  const regenBtn = document.getElementById('regenerate-summary');
+  const loading = document.getElementById('summary-loading');
+  const card = document.getElementById('summary-card');
+  if (btn) btn.disabled = true;
+  if (regenBtn) regenBtn.disabled = true;
+  if (loading) loading.classList.remove('hidden');
+  if (card) card.classList.add('hidden');
+  try {
+    const data = await callSummaryApi(currentBookId, ch);
+    if (data && data.ok && data.summary) {
+      saveSummaryToStorage(currentBookId, ch, data.summary);
+      renderSummaryCard(data.summary, data.generatedAt);
+      if (typeof App !== 'undefined' && App.track) {
+        App.track('summary_generate', { bookId: currentBookId, chapter: ch });
+      }
+    } else {
+      const errMsg = `[${data?.code || 'ERROR'}] ${data?.error || '小结生成失败'}`;
+      console.error('[reader.js] /api/summary 错误', data);
+      alert(errMsg);
+    }
+  } catch (e) {
+    console.error('[reader.js] /api/summary 网络错误', e);
+    alert(`网络错误：${e.message}`);
+  } finally {
+    isGeneratingSummary = false;
+    if (btn) btn.disabled = false;
+    if (regenBtn) regenBtn.disabled = false;
+    if (loading) loading.classList.add('hidden');
+    updateSummaryButtonState();
+  }
+}
+
+/** 绑定"生成小结"按钮 */
+function initSummaryButton() {
+  const btn = document.getElementById('generate-summary');
+  if (btn) btn.addEventListener('click', handleGenerateSummary);
+  const regenBtn = document.getElementById('regenerate-summary');
+  if (regenBtn) regenBtn.addEventListener('click', handleGenerateSummary);
+  const copyBtn = document.getElementById('copy-summary');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const content = document.getElementById('summary-content');
+      if (!content) return;
+      const text = content.textContent || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = '✅ 已复制';
+        setTimeout(() => { copyBtn.textContent = '📋 复制小结'; }, 2000);
+      } catch (e) {
+        console.warn('[reader.js] 复制失败', e);
+      }
+    });
+  }
+}
+
+/** 章节变化时调用（reader.html 内嵌脚本触发） */
+function onChapterChange(newChapter) {
+  currentChapterForSummary = newChapter;
+  hideSummaryCard();  // 切章节 → 隐藏上一章小结
+  updateSummaryButtonState();
+}
+window.onChapterChange = onChapterChange;
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[reader.js] DOMContentLoaded 触发');
-  
+
   // 1. 拿 bookId
   const hash = window.location.hash.slice(1);
   const params = new URLSearchParams(hash);
@@ -333,22 +342,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       chatHistory = chatHistory.filter(m => m.agent !== currentAgent);
       saveChatHistory(currentBookId, chatHistory);
       renderChat();
+      updateSummaryButtonState();  // D14.1：清空后可能要禁用小结按钮
     });
   }
 
   // 6. 默认激活第一个 agent
   switchAgent('lead');
-  
+
   // D7-1：试试问快捷按钮
   initTryAskButtons();
 
-  // D12.13-A：绑定重生按钮
-  initReloadQuestionsButton();
-
-  // D12.13-A：首次触发思考题生成（等内嵌脚本的 loadBook/loadChapter 跑完）
-  //   - 给内嵌脚本 200ms（通常足够：loadBook 是同步的，loadChapterContent 是异步）
-  //   - 失败时 fallback 由 thinking.js 处理
-  setTimeout(() => window.__p2ReloadQuestions(), 250);
+  // D14.1：绑定"生成小结"按钮 + 初始化按钮状态
+  initSummaryButton();
+  updateSummaryButtonState();
 
   console.log('[reader.js] 初始化完成');
 });
@@ -449,11 +455,7 @@ async function sendMessage() {
   // 3. 调 /api/chat
   try {
     const chapter = window.__readerState?.currentChapter ?? 0;
-    // P1-B 修复（2026-06-09 吕玲绮）：拼主公本章思考题答案到 bookContext
-    const thinkingAnswers = getThinkingAnswers(currentBookId, chapter);
-    const bookContextWithAnswers = currentBookContext
-      ? { ...currentBookContext, thinkingAnswers }
-      : { thinkingAnswers };
+    // D14.1：思考题已删，bookContext 不再拼 thinkingAnswers
     // v3.1 P2-I：发请求时只发"当前 agent"的历史（不是全量）
     const myHistory = chatHistoryForAgent(currentAgent).map(m => ({
       role: m.role === 'user' ? 'user' : 'assistant',
@@ -464,7 +466,7 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bookId: currentBookId,
-        bookContext: bookContextWithAnswers,
+        bookContext: currentBookContext,
         chapter,
         agent: currentAgent,
         userMessage: text,
@@ -483,6 +485,7 @@ async function sendMessage() {
       chatHistory.push({ role: 'assistant', agent: currentAgent, content: data.reply, ts: Date.now() });
       saveChatHistory(currentBookId, chatHistory);
       renderChat();
+      updateSummaryButtonState();  // D14.1：每收到一条回复都刷新小结按钮状态
     } else {
       const errMsg = `[${data.code || 'ERROR'}] ${data.error || '未知错误'}`;
       console.error('[reader.js] /api/chat 错误', data);
@@ -521,26 +524,9 @@ function renderChat() {
   stream.scrollTop = stream.scrollHeight;
 }
 
-// ========== P1-B 修复（2026-06-09 吕玲绮）==========
-// 取主公本章思考题答案（从 localStorage 读，按 chapter 分组）
-// 返回 [{qIndex, qText, answer}]，供 sendMessage 拼进 bookContext
-function getThinkingAnswers(bookId, chapter) {
-  if (!bookId) return [];
-  try {
-    const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
-    if (!raw) return [];
-    const all = JSON.parse(raw);
-    const ch = all[chapter];
-    if (!ch) return [];
-    return Object.keys(ch)
-      .map(k => ({ qIndex: Number(k), ...ch[k] }))
-      .filter(a => a.answer && String(a.answer).trim())
-      .sort((a, b) => a.qIndex - b.qIndex);
-  } catch (e) {
-    console.warn('[reader.js] 读思考题答案失败', e);
-    return [];
-  }
-}
+// D14.1 · 思考题已删：chatHistory 拼进 bookContext 的旧逻辑不再需要
+// （sendMessage 不再调 getThinkingAnswers，改用 summary block）
+// （函数体已删；保留占位说明）
 
 function appendBubble(role, text, id = null) {
   const stream = document.getElementById('chat-stream');

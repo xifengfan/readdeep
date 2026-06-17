@@ -239,32 +239,37 @@
       </div>
     </section>
 
-    <!-- ========== 思考题 ========== -->
+    <!-- ========== 章节小结（D14.1 · 替代原思考题） ========== -->
     <section class="mb-6">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-semibold"
-            style="font-size: var(--text-xl); line-height: var(--leading-snug)">本章思考题</h2>
+            style="font-size: var(--text-xl); line-height: var(--leading-snug)">章节小结</h2>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-ink-500" id="questions-meta">3-5 道 · 答完生成笔记</span>
-          <button id="reload-questions" type="button"
-                  class="text-xs px-2 py-1 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900"
-                  title="重新生成思考题（基于当前对话历史）">
-            🔄 重新生成
+          <span class="text-xs text-ink-500" id="summary-meta">和 4 角色各聊过 1 轮后可生成</span>
+          <button id="generate-summary" type="button" disabled
+                  class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="基于本轮 4 角色对话生成 500-800 字小结">
+            📝 生成小结
           </button>
         </div>
       </div>
-      <div id="question-list">
-        <!-- D12.13-A · 思考题改为 LLM 动态生成；保留 1 个空模板 + 加载占位 -->
-        <div id="questions-loading" class="text-xs text-ink-500 py-4 text-center">
-          🌀 思考题生成中…
+      <div id="summary-card" class="hidden p-4 md:p-5 rounded-lg border border-paper-200 bg-paper-50">
+        <div id="summary-content" class="text-sm whitespace-pre-wrap" style="font-family: var(--font-serif); line-height: var(--leading-loose)"></div>
+        <div class="mt-4 flex items-center gap-2 flex-wrap">
+          <button id="regenerate-summary" type="button"
+                  class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+            🔄 重新生成
+          </button>
+          <button id="copy-summary" type="button"
+                  class="text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+            📋 复制小结
+          </button>
+          <span id="summary-status" class="text-xs text-ink-500"></span>
         </div>
-        <div class="question-card hidden" data-q-index="__TEMPLATE__" id="question-card-template">
-          <div class="flex items-start mb-2">
-            <span class="q-num">__NUM__</span>
-            <p class="text-sm text-ink-900 flex-1" data-q-text  style="line-height: var(--leading-relaxed)"></p>
-          </div>
-          <textarea class="answer-input w-full mt-2 px-3 py-2 text-sm rounded border border-ink-300 outline-none focus:border-ink-900" rows="2" placeholder="写下你的回答…"></textarea>
-        </div>
+      </div>
+      <div id="summary-loading" class="hidden p-4 md:p-5 rounded-lg border border-paper-200 bg-paper-50 text-center">
+        <p class="text-sm text-ink-700">🌀 小结生成中…（最多 30s）</p>
+        <p class="text-xs text-ink-500 mt-2">基于 4 角色对话提炼</p>
       </div>
     </section>
 
@@ -387,12 +392,9 @@
         if (typeof window.onChapterChange === 'function') window.onChapterChange(currentChapter);
         updateProgress();
         loadChapterContent();
-        // P1-B 修复：切章节后加载该章节的思考题答案
-        loadThinkingAnswers();
-        // D12.13-A · 切章节后重新生成思考题
-        if (typeof window.__p2ReloadQuestions === 'function') {
-          // 给内嵌脚本 loadThinkingAnswers 一点点时间（同步）后再触发
-          setTimeout(() => window.__p2ReloadQuestions(), 0);
+        // D14.1 · 切章节后刷新"小结可用"状态（reader.js 监听 chatHistory + bookId 变化）
+        if (typeof window.onChapterChange === 'function') {
+          // reader.js 内的 onChapterChange 会重新统计 + 决定按钮 enable
         }
         if (currentBook) App.track('chapter_read', { bookId: currentBook.id, chapter: currentChapter });
       });
@@ -425,12 +427,6 @@
         if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
         updateProgress();
         loadChapterContent();
-        // P1-B 修复：切书后加载该书的思考题答案
-        loadThinkingAnswers();
-        // D12.13-A · 切书后重新生成思考题
-        if (typeof window.__p2ReloadQuestions === 'function') {
-          setTimeout(() => window.__p2ReloadQuestions(), 0);
-        }
       }
 
       // === 方案 5 · 最小版：右侧折叠面板加载章节原文 ===
@@ -527,17 +523,14 @@
 
       // 7. 发送消息：已由 reader.js 接管
       // 8. 去笔记工坊
+      // D14.1 · 思考题已删，goWorkshopBtn 不再需要拼 answers
       goWorkshopBtn.addEventListener('click', () => {
-        const answers = Array.from(document.querySelectorAll('.answer-input'))
-          .map((el, i) => ({ qIndex: i + 1, answer: el.value.trim() }))
-          .filter(a => a.answer);
         if (currentBook) {
           App.saveNote({
             bookId: currentBook.id,
             bookTitle: currentBook.title,
             chapter: currentChapter,
             agent: currentAgent,
-            answers,
             chatHistory: chatHistory.slice(-20),
             template: null,
           });
@@ -547,61 +540,6 @@
         const _chapterParam = currentChapter;
         location.href = `workshop.html?bookId=${_bookIdParam}&chapter=${_chapterParam}`;
       });
-
-      // 9. P1-B 修复：思考题答案
-      function THINKING_KEY(bookId) { return `readdeep.thinkingAnswers.${bookId}`; }
-
-      function getThinkingAnswers() {
-        if (!currentBook) return [];
-        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
-        const ch = all[currentChapter];
-        if (!ch) return [];
-        return Object.keys(ch)
-          .map(k => ({ qIndex: Number(k), ...ch[k] }))
-          .filter(a => a.answer && a.answer.trim())
-          .sort((a, b) => a.qIndex - b.qIndex);
-      }
-
-      function saveThinkingAnswers() {
-        if (!currentBook) return;
-        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
-        const ch = {};
-        document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
-          const qIndex = Number(card.dataset.qIndex);
-          const qText = (card.querySelector('[data-q-text]') || {}).textContent || '';
-          const answer = (card.querySelector('.answer-input') || {}).value || '';
-          ch[qIndex] = { qText, answer: answer.trim() };
-        });
-        all[currentChapter] = ch;
-        try { localStorage.setItem(THINKING_KEY(currentBook.id), JSON.stringify(all)); }
-        catch (e) { console.warn('[reader] 存思考题失败', e); }
-      }
-
-      function loadThinkingAnswers() {
-        if (!currentBook) return;
-        const all = JSON.parse(localStorage.getItem(THINKING_KEY(currentBook.id)) || '{}');
-        const ch = all[currentChapter] || {};
-        document.querySelectorAll('.question-card[data-q-index]').forEach(card => {
-          const qIndex = Number(card.dataset.qIndex);
-          const item = ch[qIndex];
-          const ta = card.querySelector('.answer-input');
-          if (ta) ta.value = (item && item.answer) || '';
-        });
-      }
-
-      document.querySelectorAll('.answer-input').forEach(ta => {
-        ta.addEventListener('input', saveThinkingAnswers);
-      });
-
-      // D12.13-A · 暴露给 reader.js：动态渲染思考题后重新挂 input 监听
-      window.__readerSaveAnswersInit = function () {
-        document.querySelectorAll('.answer-input').forEach(ta => {
-          // 避免重复绑：先移除（如果能拿到 listener 引用最好，但这里简单粗暴先看 dataset）
-          if (ta.dataset.saveBound === '1') return;
-          ta.addEventListener('input', saveThinkingAnswers);
-          ta.dataset.saveBound = '1';
-        });
-      };
     });
   </script>
   <script>
