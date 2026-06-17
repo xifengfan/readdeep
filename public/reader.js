@@ -127,7 +127,9 @@ function countChatsByAgent() {
   return counts;
 }
 
-/** 4 Agent 都聊过 ≥1 轮 → 启用按钮；否则禁用 */
+/** D14.2 · 2 角色即可解锁：任意 2 角色聊过 ≥1 轮 → 启用按钮
+ * （旧版要求 4 角色全到，主公 dogfooding 反馈太重——D14.2 荀彧建议 1 改）
+ */
 function updateSummaryButtonState() {
   const btn = document.getElementById('generate-summary');
   const metaEl = document.getElementById('summary-meta');
@@ -138,13 +140,17 @@ function updateSummaryButtonState() {
     return;
   }
   const counts = countChatsByAgent();
-  const allMet = Object.values(counts).every(n => n >= 1);
-  btn.disabled = !allMet;
-  if (allMet) {
-    if (metaEl) metaEl.textContent = '可生成 · 4 角色已聊过';
+  // D14.2：2 角色聊过即可（不再要求 4 角色全到）
+  const metAgents = Object.entries(counts).filter(([_, n]) => n >= 1);
+  const metCount = metAgents.length;
+  const enough = metCount >= 2;
+  btn.disabled = !enough;
+  if (enough) {
+    const names = metAgents.map(([k]) => AGENT_NAME_MAP[k] || k).join(' + ');
+    if (metaEl) metaEl.textContent = `可生成 · ${names} 已聊过`;
   } else {
     const missing = Object.entries(counts).filter(([_, n]) => n < 1).map(([k]) => AGENT_NAME_MAP[k] || k);
-    if (metaEl) metaEl.textContent = `还差：${missing.join(' / ')}`;
+    if (metaEl) metaEl.textContent = `还差（至少 2 角色聊过即可）：${missing.join(' / ')}`;
   }
 }
 
