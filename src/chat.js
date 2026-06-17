@@ -25,19 +25,8 @@ function buildSystemPrompt(agent, bookContext, bookId, chapter) {
   const bookBlock = bookContext
     ? `\n\n【当前书】\n书名：${bookContext.title}\n作者：${bookContext.author}\n简介：${bookContext.summary || '（无）'}\n`
     : '';
-  // P1-B 修复（2026-06-09 吕玲绮）：主公本章思考题答案 → 让 4 Agent 能基于主公答案追问
-  const thinkingBlock = buildThinkingBlock(bookContext);
-  return base + chapterBlock + bookBlock + thinkingBlock;
-}
-
-function buildThinkingBlock(bookContext) {
-  const ta = bookContext && bookContext.thinkingAnswers;
-  if (!Array.isArray(ta) || ta.length === 0) return '';
-  const lines = ta
-    .filter(a => a && a.answer && a.answer.trim())
-    .map(a => `Q${a.qIndex}: ${a.qText || '（本题）'}\nA${a.qIndex}: ${a.answer.trim()}`);
-  if (lines.length === 0) return '';
-  return `\n\n【主公本章思考题答案】\n${lines.join('\n')}\n`;
+  // D14.1 · 思考题已废：buildThinkingBlock 删除
+  return base + chapterBlock + bookBlock;
 }
 
 export async function chatHandler(request, env) {

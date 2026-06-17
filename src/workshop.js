@@ -17,32 +17,40 @@ const MAX_INPUT = 4000;  // 用户原文最长 4000 字
 
 /**
  * 4 个 action 的 system prompt 模板
- * v2 · 2026-06-10 衔接缺口修复：ctx 含 thinkingAnswers，拼到 system prompt 头部
- *   - 让 4 个 action（note/quote/optimize/share）都能引用主公答过的思考题关键话
- *   - 借鉴 reader.js 的 REF 注入（主公原话 + 来源）模式
+ * v3 · D14.1 · 2026-06-17：ctx 含 summary（章节小结），拼到 system prompt 头部
+ *   - 替代 v2 的 thinkingAnswers（思考题答案已废）
+ *   - 小结已包含 4 角色各自要点 + 主公观点 → 笔记主轴直接走小结
+ *   - chatHistory 仍作兜底（前端应该传空；万一有就直接拼）
  */
 const PROMPT_BUILDERS = {
   note: (ctx) => {
-    const ta = buildThinkingAnswersBlock(ctx.thinkingAnswers);
-    // D12.13-C · 2026-06-16：对话历史拼到 prompt 末尾；chatHistory 非空时调低对原文要求
+    // D14.1：用 summary 替代 thinkingAnswers
+    const summaryBlock = buildSummaryBlock(ctx.summary);
+    // D12.13-C · 2026-06-16：对话历史拼到 prompt 末尾（兜底）
     const chatBlock = buildChatHistoryBlock(ctx.chatHistory);
+    const hasSummary = !!String(ctx.summary || '').trim();
     const hasChat = Array.isArray(ctx.chatHistory) && ctx.chatHistory.length > 0;
-    const sourceGuidance = hasChat
-      ? `**生成要求（聊天驱动模式）**：
+    const sourceGuidance = hasSummary
+      ? `**生成要求（小结驱动模式）**：
+- 笔记主轴 = 章节小结里的「主公核心思考 + 4 角色要点」
+- 小结里出现的「主公说：「...」」原话必须引用（至少 3 条）
+- 原文字句作为**事实支撑**，不是主体；最多 3-5 处引用
+- 主公原话引用格式：「主公说：「...」」`
+      : (hasChat
+        ? `**生成要求（聊天驱动模式 · 小结缺失兜底）**：
 - 笔记主轴 = 主公在对话中的**观点、争辩、追问、改变**（不是原文复述）
-- 思考题答案作为**辅轴**（贴在主轴之后补证据）
 - 至少 3 条笔记来自「主公说过的话」，而不是「原文摘录」
 - 原文字句作为**事实支撑**，不是主体；最多 3-5 处引用
 - 主公原话引用格式：「主公说：「...」」`
-      : `**生成要求（原文驱动模式）**：
-- 笔记主轴 = 原文+思考题答案
-- 靠主公原话带观点、靠思考题补反思`;
+        : `**生成要求（原文驱动模式 · 无小结无聊天）**：
+- 笔记主轴 = 原文摘要
+- 靠书摘带观点`);
     return `主公调性：说人话 / 别端着 / 不卖课 / 真用过 / 敢拍胸脯 / 不绕弯子 / 看完就能用。
 笔记版加强：克制、实用、不堆名词、不说教——像主公自己写的，不像教科书。
 
 你是「读透笔记工坊」的笔记助手，把书籍内容转化成有价值的笔记。
 
-**必做**：引用书中**原句**（如「学而时习之」），引用思考题答案里主公说过的关键话（用「主公说：「...」」格式），不自己编。**严格 1500-2500 字**，不足扣分、超过也扣分，AI 主动收束。结构：一句话核心观点（30 字内）+ 5 段笔记（每段 220-320 字）+ 章节摘要（150 字）+ 3 个金句（原文 20-30 字 + 出处 + 25 字感悟）+ 1 个行动建议（今天就能试）+ 1 个延伸思考。
+**必做**：引用书中**原句**（如「学而时习之」），引用主公在本章说过的话（用「主公说：「...」」格式），不自己编。**严格 1500-2500 字**，不足扣分、超过也扣分，AI 主动收束。结构：一句话核心观点（30 字内）+ 5 段笔记（每段 220-320 字）+ 章节摘要（150 字）+ 3 个金句（原文 20-30 字 + 出处 + 25 字感悟）+ 1 个行动建议（今天就能试）+ 1 个延伸思考。
 
 **必避**：不堆术语、不写"愿你"、不给心灵鸡汤、不说教、不写四字成语。
 
@@ -50,14 +58,14 @@ const PROMPT_BUILDERS = {
 
 【当前书】${ctx.bookContext?.title || '未指定'} · ${ctx.bookContext?.author || '佚名'}
 【难度等级】${ctx.difficulty || '入门'}
-${ta}
+${summaryBlock}
 ${chatBlock}
 ${sourceGuidance}
 `;
   },
 
   quote: (ctx) => {
-    const ta = buildThinkingAnswersBlock(ctx.thinkingAnswers);
+    const summaryBlock = buildSummaryBlock(ctx.summary);
     return `你是「金句提炼师」。
 请从用户原文中提炼 3-5 句金句，输出 JSON 数组：
 [
@@ -66,13 +74,13 @@ ${sourceGuidance}
 ]
 
 【当前书】${ctx.bookContext?.title || '未指定'}
-${ta}
+${summaryBlock}
 严格按 JSON 输出，不加 \`\`\`json\`\`\` 标记外的内容。
 `;
   },
 
   optimize: (ctx) => {
-    const ta = buildThinkingAnswersBlock(ctx.thinkingAnswers);
+    const summaryBlock = buildSummaryBlock(ctx.summary);
     return `你是「笔记润色师」。
 请基于用户笔记进行润色：
 - 保留作者原意
@@ -82,12 +90,12 @@ ${ta}
 - 字数控制在原文的 90%-110%
 
 【当前书】${ctx.bookContext?.title || '未指定'}
-${ta}
+${summaryBlock}
 `;
   },
 
   share: (ctx) => {
-    const ta = buildThinkingAnswersBlock(ctx.thinkingAnswers);
+    const summaryBlock = buildSummaryBlock(ctx.summary);
     return `你是「小红书图文生成师」。
 基于用户的笔记/原文，生成小红书 6 帧图文文案（caiji-xhs-writer v2.2 范式）：
 
@@ -103,7 +111,7 @@ ${ta}
 
 【当前书】${ctx.bookContext?.title || '未指定'} · ${ctx.bookContext?.author || '佚名'}
 【难度等级】${ctx.difficulty || '入门'}
-${ta}
+${summaryBlock}
 要求：
 - 严格 JSON 输出
 - 标题用 <b> 强调
@@ -144,22 +152,26 @@ function buildChatHistoryBlock(chatHistory) {
  * v2 · 2026-06-10 衔接缺口修复：把主公思考题答案拼成 <thinking_answers> 块
  * 输入: thinkingAnswers = [{ qIndex, qText, answer }] | undefined | null
  * 输出: 拼好的字符串（空时返回空串，让 prompt 中间不会出现空块）
+ * D14.1：思考题已废，buildThinkingAnswersBlock 删除；保留为占位
  */
-function buildThinkingAnswersBlock(thinkingAnswers) {
-  if (!Array.isArray(thinkingAnswers) || thinkingAnswers.length === 0) return '';
-  // 每条：qIndex / qText / answer 都可能缺，做容错 + 截断（防超长 prompt）
-  const lines = thinkingAnswers
-    .filter(a => a && (a.answer || a.qText))
-    .map(a => {
-      const idx = a.qIndex != null ? `思考题 ${a.qIndex}` : '思考题';
-      const q = a.qText ? `${a.qText}` : '（题面未记录）';
-      const ans = a.answer ? String(a.answer).trim() : '（未答）';
-      // 单条答案截断 300 字（防爆 prompt）
-      const ansSliced = ans.length > 300 ? ans.slice(0, 300) + '…' : ans;
-      return `- ${idx}：${q}\n  主公答：${ansSliced}`;
-    });
-  if (lines.length === 0) return '';
-  return `\n【主公本章思考题答案（必须引用 · 格式：「主公说：「...」」）】\n<thinking_answers>\n${lines.join('\n')}\n</thinking_answers>\n`;
+function buildThinkingAnswersBlock(_thinkingAnswers) {
+  return '';
+}
+
+/**
+ * D14.1 · 2026-06-17：把"章节小结"拼成 <summary> 块
+ * 输入: summary = string | undefined | null
+ * 输出: 拼好的字符串（空时返回空串，让 prompt 中间不会出现空块）
+ *   - 小结来自 reader 页 /api/summary（500-800 字 · 5 段结构）
+ *   - 截断 1500 字（防爆 prompt，real 小结 500-800 字不会触发）
+ */
+function buildSummaryBlock(summary) {
+  if (!summary || typeof summary !== 'string') return '';
+  const text = summary.trim();
+  if (text.length === 0) return '';
+  // 截断 1500 字（防爆 prompt）
+  const sliced = text.length > 1500 ? text.slice(0, 1500) + '…' : text;
+  return `\n【主公本章陪读小结（4 角色 + 主公观点 · 必须引用 · 格式：「主公说：「...」」）】\n<summary>\n${sliced}\n</summary>\n`;
 }
 
 const VALID_ACTIONS = ['note', 'quote', 'optimize', 'share'];
@@ -198,7 +210,7 @@ export async function workshopHandler(request, env) {
     return json({ ok: false, code: 'BAD_JSON', error: '请求体不是合法 JSON' }, 400);
   }
 
-  const { action, input, bookContext = null, difficulty = '入门', thinkingAnswers = null, chatHistory = null, stream = false, async: asyncMode = false } = body;
+  const { action, input, bookContext = null, difficulty = '入门', summary = null, chatHistory = null, stream = false, async: asyncMode = false } = body;
 
   // 1. 校验 action
   if (!VALID_ACTIONS.includes(action)) {
@@ -247,7 +259,7 @@ export async function workshopHandler(request, env) {
     const doReq = new Request('https://do/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, input, bookContext, difficulty, thinkingAnswers, chatHistory }),
+      body: JSON.stringify({ action, input, bookContext, difficulty, summary, chatHistory }),
     });
     // 同步等待 DO 启动（DO 内部用 waitUntil 异步执行）
     const doResp = await stub.fetch(doReq);
@@ -263,7 +275,8 @@ export async function workshopHandler(request, env) {
   // 3. 拼 system prompt
   // v2 · 2026-06-10 衔接缺口修复：thinkingAnswers 注入到 ctx，PROMPT_BUILDERS 负责拼到 system prompt 头部
   // D12.13-C · 2026-06-16：chatHistory 也注入到 ctx（note prompt 会拼对话历史段）
-  const ctx = { bookContext, difficulty, thinkingAnswers, chatHistory };
+  // D14.1 · 2026-06-17：ctx 改用 summary（章节小结）替代 thinkingAnswers
+  const ctx = { bookContext, difficulty, summary, chatHistory };
   const systemPrompt = PROMPT_BUILDERS[action](ctx);
 
   // D12.13-C · 当 chatHistory 非空且 input 为空/过短 → 用 chatHistory 合成兜底 input

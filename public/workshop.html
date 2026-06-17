@@ -34,35 +34,17 @@
       vertical-align: text-bottom;
       animation: blink-cursor 1s step-end infinite;
     }
-    /* D12.13-C · 从对话生成想法笔记（一键按钮） */
+    /* D14.1 · 模板提示条（替代原'从对话生成'按钮） */
     .auto-generate-bar {
       margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
-      border: 1px dashed #f59e0b;
-      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      background: var(--paper-100, #f5e6d3);
+      border: 1px solid var(--paper-200, #e8d5b7);
+      border-radius: 6px;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.5rem;
       flex-wrap: wrap;
-    }
-    .auto-generate-btn {
-      padding: 0.5rem 1rem;
-      background: #c1272d;
-      color: #fafaf7;
-      border-radius: 6px;
-      font-weight: 500;
-      font-size: 0.875rem;
-      cursor: pointer;
-      transition: background 0.15s;
-      border: none;
-    }
-    .auto-generate-btn:hover:not(:disabled) {
-      background: #a11f25;
-    }
-    .auto-generate-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
     }
     .auto-generate-hint {
       font-size: 0.75rem;
@@ -150,15 +132,10 @@
         </button>
       </div>
 
-      <!-- D12.13-C · 从对话生成想法笔记（一键按钮） -->
+      <!-- D14.1 · 合并到模板：陪读小结已在 reader 页面生成，这里直接用小结做 input -->
       <div class="auto-generate-bar">
-        <button id="auto-generate-note" type="button"
-                class="auto-generate-btn"
-                title="不输入原文，直接从陪读对话提炼笔记（主公观点驱动）">
-          ✨ 从对话生成想法笔记
-        </button>
-        <span class="auto-generate-hint" id="auto-generate-hint">
-          不需粘原文，直接从陪读对话提炼笔记（主公观点驱动）
+        <span class="auto-generate-hint" id="summary-hint" style="color: var(--ink-500, #737373);">
+          💡 选好模板后，会用本章节陪读小结直接生成笔记（无需粘原文）
         </span>
       </div>
     </section>
@@ -289,25 +266,13 @@
         // D8-1 fix-1: URL 优先合成 latestNote
         // 之前 URL 只更新下拉框/原文预览，generate() 仍用 localStorage 第一个 note
         // 现在用 URL 的 bookId+chapter 合成虚拟 latestNote，AI 看到的就是当前章
-        const _taMap = readThinkingAnswersForChapter(urlBookId, urlChapterNum);
-        const _answers = Object.keys(_taMap)
-          .map(k => {
-            const _qIdx = Number(k);
-            const _item = _taMap[k];
-            return {
-              qIndex: _qIdx,
-              question: _item.qText || `思考题 ${_qIdx}`,
-              answer: _item.answer || '',
-            };
-          })
-          .filter(a => a.answer && String(a.answer).trim());
+        // D14.1：思考题已删，不再拼 answers 进 latestNote；templateKey 保持 null
         const _book = contextAllBooks.find(b => b.id === urlBookId);
         latestNote = {
           bookId: urlBookId,
           bookTitle: _book?.title || latestNote?.bookTitle || urlBookId,
           bookAuthor: _book?.author || '佚名',
           chapter: urlChapterNum,
-          answers: _answers,
           dialogue: latestNote?.dialogue || [],
           createdAt: new Date().toISOString(),
         };
@@ -355,10 +320,12 @@
           const selected = i === contextChapter ? 'selected' : '';
           options.push(`<option value="${i}" ${selected}>第 ${i + 1} 章</option>`);
         }
-        const answersCount = (() => {
-          if (!contextBookId || contextChapter == null) return 0;
-          const _taMap = readThinkingAnswersForChapter(contextBookId, contextChapter);
-          return Object.values(_taMap).filter(x => x && x.answer && String(x.answer).trim()).length;
+        // D14.1 · 思考题计数已删，改为小结状态指示
+        const summaryStatus = (() => {
+          if (!contextBookId || contextChapter == null) return '';
+          return readSummaryFromStorage(contextBookId, contextChapter)
+            ? '· 📝 已有小结'
+            : '· 💡 去陪读室生成小结';
         })();
         const chapterTitle = book?.chapterTitles?.[contextChapter] || `第 ${contextChapter + 1} 章`;
         // D8-2 v3.3 fix-16: 加书籍下拉
@@ -366,7 +333,7 @@
         const bookOptions = '<option value="">-- 请选择书籍 --</option>' + contextAllBooks.map(b =>
           `<option value="${escapeHtml(b.id)}" ${b.id === contextBookId ? 'selected' : ''}>${escapeHtml(b.title || b.id)}</option>`
         ).join('');
-        contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${bookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${options.join('')}</select> <span class="text-ink-500">· ${escapeHtml(chapterTitle)} · 思考题 ${answersCount} 道</span> · <a href="reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${contextChapter}" class="ml-1 px-2 py-1 text-xs rounded border border-ink-300 hover:border-ink-900">📖 返回陪读</a>`;
+        contextInfo.innerHTML = `当前：<select id="book-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${bookOptions}</select> · <select id="chapter-select-workshop" class="ml-1 mr-1 px-2 py-1 text-sm rounded border border-ink-300 bg-paper-50">${options.join('')}</select> <span class="text-ink-500">· ${escapeHtml(chapterTitle)} ${summaryStatus}</span> · <a href="reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${contextChapter}" class="ml-1 px-2 py-1 text-xs rounded border border-ink-300 hover:border-ink-900">📖 返回陪读</a>`;
         // D8-2 v3.4 fix-17: 抽函数复用（让"未关联态"也能绑下拉）
         _bindBookChapterSelectors();
         // 加载章节原文预览
@@ -398,18 +365,14 @@
             }
             contextChapter = newCh;
             // 切章节时合成 latestNote（如还没）
+            // D14.1：思考题已删，不再拼 answers 进 latestNote
             if (!latestNote || latestNote.bookId !== contextBookId || latestNote.chapter !== contextChapter) {
-              const _taMap = readThinkingAnswersForChapter(contextBookId || '', contextChapter);
-              const _answers = Object.keys(_taMap)
-                .map(k => ({ qIndex: Number(k), question: _taMap[k].qText || `思考题 ${k}`, answer: _taMap[k].answer || '' }))
-                .filter(a => a.answer && String(a.answer).trim());
               const _b = contextAllBooks.find(b => b.id === contextBookId);
               latestNote = {
                 bookId: contextBookId,
                 bookTitle: _b?.title || contextBookId,
                 bookAuthor: _b?.author || '佚名',
                 chapter: contextChapter,
-                answers: _answers,
                 dialogue: [],
                 createdAt: new Date().toISOString(),
               };
@@ -435,17 +398,13 @@
             if (newBookId === contextBookId) return;
             contextBookId = newBookId;
             contextChapter = 0;
-            const _taMap = readThinkingAnswersForChapter(contextBookId, 0);
-            const _answers = Object.keys(_taMap)
-              .map(k => ({ qIndex: Number(k), question: _taMap[k].qText || `思考题 ${k}`, answer: _taMap[k].answer || '' }))
-              .filter(a => a.answer && String(a.answer).trim());
+            // D14.1：思考题已删，不再拼 answers 进 latestNote
             const _b = contextAllBooks.find(b => b.id === newBookId);
             latestNote = {
               bookId: newBookId,
               bookTitle: _b?.title || newBookId,
               bookAuthor: _b?.author || '佚名',
               chapter: 0,
-              answers: _answers,
               dialogue: [],
               createdAt: new Date().toISOString(),
             };
@@ -589,272 +548,34 @@
         });
       });
 
-      // D12.13-C · 从对话生成想法笔记按钮
-      initAutoGenerateButton();
-
       /**
-       * 构造 input：把 latestNote 转成 AI 可读的原文
-       * 用法：把"用户答过的题"和"陪读上下文"拼成一段自然语言
-       * v2 · 2026-06-10 衔接缺口修复：题面 a.question 缺失时，从 localStorage 补读（key=readdeep.thinkingAnswers.{bookId}）
+       * D14.1：直接读本地“章节小结”做 input（原 buildInput 拼接“思考题答案 + 对话”已废除）
+       * key: readdeep.summary.{bookId}.{chapter}
+       * 返回：小结文本（可能为空）
        */
-      function buildInput(note) {
-        const ctx = `《${note.bookTitle || '未指定'}》第 ${(note.chapter || 0) + 1} 章`;
-        // v2：从 localStorage 读题面，补到 answer 里（answers 数组原只带 qIndex + answer）
-        const taMap = readThinkingAnswersForChapter(note.bookId, note.chapter || 0);
-        const answers = (note.answers || []).map((a, i) => {
-          const qText = a.question || (taMap[a.qIndex] && taMap[a.qIndex].qText) || '（题面未记录）';
-          return `思考题 ${i + 1}：${qText}\n我的回答：${a.answer || ''}`;
-        }).join('\n\n');
-        const dialogue = (note.dialogue || []).slice(-6).map(d => `${d.role || 'user'}：${d.text || ''}`).join('\n');
-        return `${ctx}\n\n【我的回答】\n${answers || '（暂无回答）'}\n\n【陪读对话节选】\n${dialogue || '（暂无）'}`;
-      }
-
-      /**
-       * v2 · 2026-06-10 衔接缺口修复：从 localStorage 读主公本章思考题答案
-       * key 格式：readdeep.thinkingAnswers.{bookId} → {chapter: {qIndex: {qText, answer}}}
-       * 返回：{ qIndex: { qText, answer } }（只看指定 chapter）
-       */
-      function readThinkingAnswersForChapter(bookId, chapter) {
-        if (!bookId) {
-          console.log('[fix-26] readThinkingAnswersForChapter: bookId 为空，跳过');
-          return {};
-        }
+      function readSummaryFromStorage(bookId, chapter) {
+        if (!bookId) return '';
         try {
-          const raw = localStorage.getItem(`readdeep.thinkingAnswers.${bookId}`);
-          if (!raw) {
-            console.log('[fix-26] readThinkingAnswersForChapter: localStorage 无 key:', `readdeep.thinkingAnswers.${bookId}`);
-            return {};
-          }
-          const all = JSON.parse(raw);
-          // D8-2 v3.9 fix-26: 调试日志（贴 console 给卧龙看）
-          console.log('[fix-26] readThinkingAnswersForChapter: bookId=', bookId, 'chapter=', chapter, 'localStorage keys=', Object.keys(all), 'all[chapter]=', all[chapter], 'typeof=', typeof all[chapter]);
-          const ch = all[chapter];
-          return ch && typeof ch === 'object' ? ch : {};
+          return localStorage.getItem(`readdeep.summary.${bookId}.${chapter || 0}`) || '';
         } catch (e) {
-          console.warn('[workshop] 读思考题答案失败', e);
-          return {};
+          console.warn('[workshop] 读小结失败', e);
+          return '';
         }
       }
 
       /**
-       * v2 · 2026-06-10 衔接缺口修复：把本章思考题答案转换成 [{qIndex, qText, answer}]
-       * 过滤掉未答题（answer 为空）；qText 缺失时用题序代替
+       * D14.1 · 思考题已删，以下函数全部废除：
+       *   - readThinkingAnswersForChapter
+       *   - buildThinkingAnswersForApi
+       *   - readChatHistoryFromStorage
+       *   - hasEnoughChatHistory
+       *   - autoGenerateNoteFromChat
+       *   - initAutoGenerateButton
+       *   - updateAutoGenerateHint
+       *   - buildInput
+       * 替代：readSummaryFromStorage(bookId, chapter) 直接读"章节小结"
+       * 旧 localStorage key（readdeep.thinkingAnswers.*）保留，不动
        */
-      function buildThinkingAnswersForApi(bookId, chapter) {
-        const ch = readThinkingAnswersForChapter(bookId, chapter);
-        return Object.keys(ch)
-          .map(k => ({ qIndex: Number(k), ...ch[k] }))
-          .filter(a => a.answer && String(a.answer).trim())
-          .sort((a, b) => a.qIndex - b.qIndex);
-      }
-
-      /**
-       * D12.13-C · 2026-06-16：从 localStorage 读陪读聊天历史
-       * key: readdeep.chatHistory.{bookId}
-       * 返回：[{ role, agent?, content, ts }]（不带过滤，后端会自己处理）
-       */
-      function readChatHistoryFromStorage(bookId) {
-        if (!bookId) return [];
-        try {
-          const raw = localStorage.getItem(`readdeep.chatHistory.${bookId}`);
-          if (!raw) return [];
-          const arr = JSON.parse(raw);
-          return Array.isArray(arr) ? arr : [];
-        } catch (e) {
-          console.warn('[workshop] 读聊天历史失败', e);
-          return [];
-        }
-      }
-
-      /**
-       * D12.13-C · 检查陪读历史是否足聊（>=4 条有效消息）
-       */
-      function hasEnoughChatHistory(bookId) {
-        const arr = readChatHistoryFromStorage(bookId);
-        return arr.filter(m => m && m.content && String(m.content).trim()).length >= 4;
-      }
-
-      /**
-       * D12.13-C · 从对话生成想法笔记（一键按钮）
-       * - 不需粘原文，直接从陪读对话提炼
-       * - 复用 generate('wechat_article') 流程，但把 input 清空让后端用 chatHistory 合成
-       */
-      async function autoGenerateNoteFromChat() {
-        const btn = document.getElementById('auto-generate-note');
-        const hint = document.getElementById('auto-generate-hint');
-        if (!btn) return;
-
-        // 1. 校验上下文
-        if (!latestNote) {
-          showToast?.('请先去陪读室读一章，再回来生成笔记', 'warn');
-          setTimeout(() => { location.href = 'reader.html'; }, 800);
-          return;
-        }
-        const bookId = latestNote.bookId || contextBookId;
-        if (!bookId) {
-          showToast?.('未选书，先去陪读室选书', 'warn');
-          return;
-        }
-
-        // 2. 校验聊天历史（>=4 条）
-        if (!hasEnoughChatHistory(bookId)) {
-          showToast?.('⚠️ 陪读对话还不够（至少 2 轮），先去陪读室聊几句', 'warn');
-          setTimeout(() => {
-            const ch = latestNote?.chapter ?? contextChapter ?? 0;
-            location.href = `reader.html?id=${encodeURIComponent(bookId)}&chapter=${ch}`;
-          }, 800);
-          return;
-        }
-
-        // 3. UI：按钮 disable + 提示
-        btn.disabled = true;
-        const oldText = btn.textContent;
-        btn.textContent = '🌀 生成中…';
-        if (hint) hint.textContent = `从陪读对话提炼中（${readChatHistoryFromStorage(bookId).length} 条）`;
-
-        try {
-          // 4. 直接调 /api/workshop，action=note，input=空（让后端用 chatHistory 合成）
-          const input = '';  // 关键：input 为空，后端会用 chatHistory 合成
-          const bookContext = buildBookContext(latestNote);
-          const thinkingAnswers = buildThinkingAnswersForApi(bookId, latestNote.chapter || 0);
-          const chatHistory = readChatHistoryFromStorage(bookId);
-
-          const resp = await fetch('/api/workshop', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'note', input, bookContext, difficulty: '入门', thinkingAnswers, chatHistory, async: true }),
-          });
-          const submitData = await resp.json();
-          if (!submitData.ok) throw new Error(submitData.error || '提交失败');
-
-          const taskId = submitData.taskId;
-          console.log('[D12.13-C auto] 任务已提交', taskId);
-
-          // 5. 复用 generate() 的渲染：先把按钮状态显示好，让主公看到进度
-          currentTemplate = 'wechat_article';
-          resultLabel.textContent = `· 从对话生成的想法笔记`;
-          resultMeta.textContent = `⏳ 从陪读对话生成中…（taskId=${taskId.slice(0, 8)}…）`;
-          resultContent.textContent = '';
-          resultContent.classList.add('streaming');
-          resultContent.textContent = '▍';
-          resultSection.classList.remove('hidden');
-          resultSection.scrollIntoView({ behavior: 'smooth' });
-
-          // 6. 写占位
-          const placeholderNote = {
-            bookId,
-            bookTitle: latestNote.bookTitle,
-            chapter: latestNote.chapter,
-            template: 'wechat_article',
-            content: '',
-            action: 'note',
-            createdAt: new Date().toISOString(),
-            taskId,
-            status: 'pending',
-            source: 'auto_from_chat',  // 标记：来源是"从对话生成"
-          };
-          App.saveNote(placeholderNote);
-          generatedNotes.push(placeholderNote);
-          renderHistory();
-          showToast?.('⏳ 从对话生成中，可在历史区查看进度', 'info');
-
-          // 7. 轮询拿结果（与 generate() 保持一致）
-          const POLL_INTERVAL = 3000;
-          const MAX_POLL_COUNT = 60;
-          let apiResp = null;
-          for (let i = 0; i < MAX_POLL_COUNT; i++) {
-            await new Promise(r => setTimeout(r, POLL_INTERVAL));
-            const statusResp = await fetch(`/api/workshop/status?taskId=${taskId}`);
-            const statusData = await statusResp.json();
-            if (statusData.ok && statusData.status === 'done') {
-              apiResp = statusData.result;
-              apiResp.elapsedMs = statusData.elapsedMs;
-              break;
-            }
-            if (statusData.ok && statusData.status === 'failed') {
-              throw new Error(statusData.error || '生成失败');
-            }
-            resultMeta.textContent = `⏳ 从对话生成中…（${Math.round((i + 1) * POLL_INTERVAL / 1000)}s · status=${statusData.status}）`;
-          }
-          if (!apiResp) throw new Error('任务超时（>3 分钟）未完成');
-
-          // 8. 渲染：用 wrapAsWechatArticle 包裹
-          resultContent.classList.remove('streaming');
-          const rawReply = apiResp.reply || '';
-          const bookCtx = `${latestNote.bookTitle} · ${bookContext.chapter}`;
-          const displayText = wrapAsWechatArticle(bookContext, rawReply, null);  // 不联动 quote
-          currentResult = displayText;
-          resultContent.textContent = displayText;
-          resultMeta.innerHTML = `✅ 完成 · 来源：陪读对话提炼 · 模板：公众号长文 · action=note · ${bookCtx} · 用时 ${apiResp.elapsedMs || 0}ms · 模型 deepseek-v4-flash · taskId=${taskId.slice(0, 8)}…`;
-
-          // 9. 写完成态到 localStorage
-          try {
-            const _allNotes = JSON.parse(localStorage.getItem('readdeep.notes') || '[]');
-            const _filtered = _allNotes.filter(n => !(n.taskId === taskId && n.status === 'pending'));
-            _filtered.push({
-              ...placeholderNote,
-              content: displayText,
-              status: 'done',
-              elapsedMs: apiResp.elapsedMs || 0,
-            });
-            localStorage.setItem('readdeep.notes', JSON.stringify(_filtered));
-          } catch (e) { console.warn('[auto] localStorage 更新失败', e); }
-
-          // 10. 同步 generatedNotes
-          const _phIdx = generatedNotes.findIndex(n => n.taskId === taskId && n.status === 'pending');
-          if (_phIdx >= 0) generatedNotes.splice(_phIdx, 1);
-          const _completedNote = { ...placeholderNote, content: displayText, status: 'done', elapsedMs: apiResp.elapsedMs || 0 };
-          generatedNotes.push(_completedNote);
-          latestNote = _completedNote;
-          renderHistory();
-
-          showToast?.('✅ 从对话生成的想法笔记完成', 'success');
-        } catch (e) {
-          console.error('[auto-generate-note] 失败', e);
-          showToast?.(`❌ ${e.message || '生成失败'}`, 'error');
-          resultMeta.textContent = `❌ 生成失败：${e.message}`;
-        } finally {
-          btn.disabled = false;
-          btn.textContent = oldText;
-          if (hint) hint.textContent = '不需粘原文，直接从陪读对话提炼笔记（主公观点驱动）';
-        }
-      }
-
-      /**
-       * D12.13-C · 初始化"从对话生成想法笔记"按钮
-       */
-      function initAutoGenerateButton() {
-        const btn = document.getElementById('auto-generate-note');
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-          if (typeof App !== 'undefined' && App.track) {
-            App.track('auto_generate_note', { bookId: contextBookId || (latestNote && latestNote.bookId) });
-          }
-          autoGenerateNoteFromChat();
-        });
-        // 初次渲染：根据当前上下文更新 hint
-        updateAutoGenerateHint();
-      }
-
-      function updateAutoGenerateHint() {
-        const btn = document.getElementById('auto-generate-note');
-        const hint = document.getElementById('auto-generate-hint');
-        if (!btn || !hint) return;
-        const bookId = (latestNote && latestNote.bookId) || contextBookId;
-        if (!bookId) {
-          btn.disabled = true;
-          hint.textContent = '⚠️ 未选书，先去陪读室选书';
-          return;
-        }
-        const len = readChatHistoryFromStorage(bookId).filter(m => m && m.content && String(m.content).trim()).length;
-        if (len < 4) {
-          btn.disabled = false;  // 仍然可点（点了会引导去陪读室）
-          hint.textContent = `⚠️ 陪读对话还不够（当前 ${len} 条，至少 4 条）`;
-        } else {
-          btn.disabled = false;
-          hint.textContent = `✅ 可用：${len} 条对话 → 点击生成笔记`;
-        }
-      }
 
       // 前端 tryParseJson · 从模型输出中提取 JSON（简化版 safeParseJson）
       function tryParseJson(text) {
@@ -995,8 +716,8 @@ ${noteReply}
        * 非流式保持原行为
        */
       async function callWorkshopApi(action, input, bookContext, opts = {}) {
+        // D14.1 · thinkingAnswers 已废除，opts.thinkingAnswers 忽略
         const body = { action, input, bookContext, difficulty: '入门', stream: opts.stream === true };
-        if (opts.thinkingAnswers) body.thinkingAnswers = opts.thinkingAnswers;
         const resp = await fetch('/api/workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1213,25 +934,13 @@ ${noteReply}
             && contextChapter !== null
             && (latestNote.bookId !== contextBookId || latestNote.chapter !== contextChapter)) {
           console.warn('[fix-2] latestNote 与 context 不一致，按 context 重新合成');
-          const _taMap2 = readThinkingAnswersForChapter(contextBookId, contextChapter);
-          const _answers2 = Object.keys(_taMap2)
-            .map(k => {
-              const _qIdx = Number(k);
-              const _item = _taMap2[k];
-              return {
-                qIndex: _qIdx,
-                question: _item.qText || `思考题 ${_qIdx}`,
-                answer: _item.answer || '',
-              };
-            })
-            .filter(a => a.answer && String(a.answer).trim());
+          // D14.1：思考题已删，不再拼 answers 进 latestNote
           const _book2 = contextAllBooks.find(b => b.id === contextBookId);
           latestNote = {
             bookId: contextBookId,
             bookTitle: _book2?.title || latestNote?.bookTitle || contextBookId,
             bookAuthor: _book2?.author || '佚名',
             chapter: contextChapter,
-            answers: _answers2,
             dialogue: latestNote?.dialogue || [],
             createdAt: new Date().toISOString(),
           };
@@ -1250,30 +959,18 @@ ${noteReply}
           return;
         }
 
-        // D8-1 fix-X: 切章节后无答案时弹提示
-        // 场景：主公切到未答过思考题的章节，AI 只能按章节标题泛写
-        // 行为：confirm 二次确认 · 主公确认才继续 · 取消回 reader 答思考题
-        const _noAnswers = !latestNote.answers || latestNote.answers.length === 0;
-        if (_noAnswers) {
-          const chNum = (latestNote.chapter || 0) + 1;
-          const ok = window.confirm(
-            `⚠️ 第 ${chNum} 章还没有答过思考题\n\n` +
-            `AI 只能按章节标题和书摘要泛写，输出质量会打折扣。\n\n` +
-            `点击"确定"继续生成（泛写版）\n` +
-            `点击"取消"返回陪读室先答思考题`
-          );
-          if (!ok) {
-            // D8-2 v3.7 fix-23: 取消跳转用 contextBookId + contextChapter（不用 latestNote.bookId，避免 null）
-            const _backBookId = contextBookId || latestNote?.bookId || '';
-            const _backChapter = (contextChapter != null) ? contextChapter : (latestNote?.chapter || 0);
-            if (_backBookId) {
-              location.href = `reader.html?id=${encodeURIComponent(_backBookId)}&chapter=${_backChapter}`;
-            } else {
-              location.href = 'reader.html';
-            }
-            return;
-          }
-          showToast?.('已确认 · AI 将按章节标题泛写', 'warn');
+        // D14.1：检查是否有小结（input 源）
+        // - 无小结：toast 提示 + 跳 reader 生成（避免 400）
+        // - 有小结：直接继续
+        const _chapter = (latestNote && latestNote.chapter) || 0;
+        const _bookId = latestNote.bookId || contextBookId;
+        const _summary = readSummaryFromStorage(_bookId, _chapter);
+        if (!_summary) {
+          showToast?.('💡 请先去陪读室生成小结（与 4 角色各聊 1 轮）', 'warn');
+          setTimeout(() => {
+            location.href = `reader.html?id=${encodeURIComponent(_bookId)}&chapter=${_chapter}`;
+          }, 1200);
+          return;
         }
 
         const action = TEMPLATE_TO_ACTION[templateKey];
@@ -1291,10 +988,9 @@ ${noteReply}
 
         try {
           const t0 = Date.now();
-          const input = buildInput(latestNote);
+          // D14.1：用本地"章节小结"做 input（原 buildInput 已废除）
+          const input = _summary;
           const bookContext = buildBookContext(latestNote);
-          // v2 · 2026-06-10 衔接缺口修复：调后端时把本章思考题答案也带过去
-          const thinkingAnswers = buildThinkingAnswersForApi(latestNote.bookId, latestNote.chapter || 0);
 
           // P2-H · 流式输出（D6 下午）· 4 action 全部流式
           resultContent.classList.add('streaming');
@@ -1306,7 +1002,7 @@ ${noteReply}
           const submitResp = await fetch('/api/workshop', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, input, bookContext, difficulty: '入门', thinkingAnswers, async: true }),
+            body: JSON.stringify({ action, input, bookContext, difficulty: '入门', async: true }),
           });
           const submitData = await submitResp.json();
           if (!submitData.ok) {
@@ -1379,7 +1075,7 @@ ${noteReply}
               const quoteSubmit = await fetch('/api/workshop', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'quote', input, bookContext, difficulty: '入门', thinkingAnswers, chatHistory, async: true }),
+                body: JSON.stringify({ action: 'quote', input, bookContext, difficulty: '入门', async: true }),
               });
               const quoteSubmitData = await quoteSubmit.json();
               if (quoteSubmitData.ok) {

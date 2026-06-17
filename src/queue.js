@@ -77,7 +77,7 @@ export class WorkshopTaskDO {
    */
   async _execute(body) {
     const startedAt = Date.now();
-    const { action, input, bookContext, difficulty = '入门', thinkingAnswers = null, chatHistory = null } = body;
+    const { action, input, bookContext, difficulty = '入门', summary = null, chatHistory = null } = body;
     const apiKey = this.env.DEEPSEEK_API_KEY;
 
     // 1. 标记 running
@@ -88,7 +88,8 @@ export class WorkshopTaskDO {
     });
 
     // 2. 拼 system prompt（复用 workshop.js 的 PROMPT_BUILDERS 逻辑，简化版）
-    const systemPrompt = this._buildPrompt(action, { bookContext, difficulty, thinkingAnswers, chatHistory });
+    // D14.1：ctx 用 summary 替代 thinkingAnswers
+    const systemPrompt = this._buildPrompt(action, { bookContext, difficulty, summary, chatHistory });
 
     // 3. maxTokens 配
     const maxTokens = action === 'share' ? 6000 : action === 'note' ? 4000 : action === 'quote' ? 1500 : 1200;
@@ -162,26 +163,32 @@ export class WorkshopTaskDO {
   /**
    * 简化版 PROMPT_BUILDERS（与 workshop.js 同步）
    * D8-2 暂不复用 workshop.js 的导出（避免循环依赖）
+   * D14.1：用 summary 块替代 thinking_answers 块
    */
   _buildPrompt(action, ctx) {
-    const ta = this._buildThinkingAnswersBlock(ctx.thinkingAnswers);
+    const summaryBlock = this._buildSummaryBlock(ctx.summary);
     const title = ctx.bookContext?.title || '未指定';
     const author = ctx.bookContext?.author || '佚名';
     const diff = ctx.difficulty || '入门';
 
     if (action === 'note') {
       const chatBlock = this._buildChatHistoryBlock(ctx.chatHistory);
+      const hasSummary = !!String(ctx.summary || '').trim();
       const hasChat = Array.isArray(ctx.chatHistory) && ctx.chatHistory.length > 0;
-      const sourceGuidance = hasChat
-        ? `**生成要求（聊天驱动模式）**：
-- 笔记主轴 = 主公在对话中的**观点、争辩、追问、改变**（不是原文复述）
-- 思考题答案作为**辅轴**（贴在主轴之后补证据）
-- 至少 3 条笔记来自「主公说过的话」，而不是「原文摘录」
+      const sourceGuidance = hasSummary
+        ? `**生成要求（小结驱动模式）**：
+- 笔记主轴 = 章节小结里的「主公核心思考 + 4 角色要点」
+- 小结里出现的「主公说：「...」」原话必须引用（至少 3 条）
 - 原文字句作为**事实支撑**，不是主体；最多 3-5 处引用
 - 主公原话引用格式：「主公说：「...」」`
-        : `**生成要求（原文驱动模式）**：
-- 笔记主轴 = 原文+思考题答案
-- 靠主公原话带观点、靠思考题补反思`;
+        : (hasChat
+          ? `**生成要求（聊天驱动模式 · 小结缺失兜底）**：
+- 笔记主轴 = 主公在对话中的**观点、争辩、追问、改变**
+- 至少 3 条笔记来自「主公说过的话」
+- 主公原话引用格式：「主公说：「...」」`
+          : `**生成要求（原文驱动模式 · 无小结无聊天）**：
+- 笔记主轴 = 原文摘要
+- 靠书摘带观点`);
       return `主公调性：说人话 / 别端着 / 不卖课 / 真用过 / 敢拍胸脯 / 不绕弯子 / 看完就能用。
 笔记版加强：克制、实用、不堆名词、不说教——像主公自己写的，不像教科书。
 
@@ -195,7 +202,7 @@ export class WorkshopTaskDO {
 
 【当前书】${title} · ${author}
 【难度等级】${diff}
-${ta}
+${summaryBlock}
 ${chatBlock}
 ${sourceGuidance}
 `;
@@ -209,7 +216,7 @@ ${sourceGuidance}
 ]
 
 【当前书】${title}
-${ta}
+${summaryBlock}
 严格按 JSON 输出，不加 \`\`\`json\`\`\` 标记外的内容。
 `;
     }
@@ -223,7 +230,7 @@ ${ta}
 - 字数控制在原文的 90%-110%
 
 【当前书】${title}
-${ta}
+${summaryBlock}
 `;
     }
     if (action === 'share') {
@@ -242,7 +249,7 @@ ${ta}
 
 【当前书】${title} · ${author}
 【难度等级】${diff}
-${ta}
+${summaryBlock}
 要求：
 - 严格 JSON 输出
 - 标题用 <b> 强调
@@ -268,18 +275,20 @@ ${ta}
     return `\n【主公本章陪读对话和想法（至少 3 条笔记从这提炼，格式：「主公说：「...」」）】\n<chat_history>\n${lines.join('\n')}\n</chat_history>\n`;
   }
 
-  _buildThinkingAnswersBlock(thinkingAnswers) {
-    if (!Array.isArray(thinkingAnswers) || thinkingAnswers.length === 0) return '';
-    const lines = thinkingAnswers
-      .filter(a => a && (a.answer || a.qText))
-      .map(a => {
-        const idx = a.qIndex != null ? `思考题 ${a.qIndex}` : '思考题';
-        const q = a.qText ? `${a.qText}` : '（题面未记录）';
-        const ans = a.answer ? String(a.answer).trim() : '（未答）';
-        const ansSliced = ans.length > 300 ? ans.slice(0, 300) + '…' : ans;
-        return `- ${idx}：${q}\n  主公答：${ansSliced}`;
-      });
-    if (lines.length === 0) return '';
-    return `\n【主公本章思考题答案（必须引用 · 格式：「主公说：「...」」）】\n<thinking_answers>\n${lines.join('\n')}\n</thinking_answers>\n`;
+  /**
+   * D14.1 · 2026-06-17：把"章节小结"拼成 <summary> 块（与 workshop.js 同步）
+   * 输入: summary = string | undefined | null
+   */
+  _buildSummaryBlock(summary) {
+    if (!summary || typeof summary !== 'string') return '';
+    const text = summary.trim();
+    if (text.length === 0) return '';
+    const sliced = text.length > 1500 ? text.slice(0, 1500) + '…' : text;
+    return `\n【主公本章陪读小结（4 角色 + 主公观点 · 必须引用 · 格式：「主公说：「...」」）】\n<summary>\n${sliced}\n</summary>\n`;
+  }
+
+  // D14.1 · 思考题已废：buildThinkingAnswersBlock 占位（不返回任何内容）
+  _buildThinkingAnswersBlock(_thinkingAnswers) {
+    return '';
   }
 }
