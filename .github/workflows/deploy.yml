@@ -44,5 +44,7 @@ jobs:
           # action 会自动调用 wrangler secret put DEEPSEEK_API_KEY
           secrets: |
             DEEPSEEK_API_KEY
-          env:
-            DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+        # env: 是 step 级（与 uses/with 同级），不是 with 级
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
