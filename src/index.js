@@ -13,7 +13,7 @@ import { chatHandler } from './chat.js';
 import { agentsHandler } from './agents.js';
 import { workshopHandler } from './workshop.js';
 import { renderCardHandler } from './render-card.js';
-import { thinkingHandler } from './thinking.js';
+import { summaryHandler } from './summary.js';
 import { WorkshopTaskDO } from './queue.js';
 
 // 静态资源兜底
@@ -70,9 +70,9 @@ export default {
     if (pathname === '/api/render-card') {
       return handleApi(renderCardHandler, request, env);
     }
-    // D12.13-A · 动态思考题生成
-    if (pathname === '/api/thinking-questions') {
-      return handleApi(thinkingHandler, request, env);
+    // D14.1 · 4 Agent 对话小结生成（替代旧 thinking-questions）
+    if (pathname === '/api/summary') {
+      return handleApi(summaryHandler, request, env);
     }
     if (false && pathname === '/api/debug') {
       // 临时调试：返回 import 状态
