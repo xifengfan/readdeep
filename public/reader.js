@@ -196,13 +196,52 @@ function renderSummaryCard(summary, generatedAt) {
   const card = document.getElementById('summary-card');
   const content = document.getElementById('summary-content');
   const status = document.getElementById('summary-status');
+  const empty = document.getElementById('summary-empty-state');
   if (!card || !content) return;
   content.textContent = summary;
   card.classList.remove('hidden');
+  if (empty) empty.classList.add('hidden');
   if (status && generatedAt) {
     const d = new Date(generatedAt);
     const ts = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
     status.textContent = `生成于 ${ts}`;
+  }
+}
+
+/** D14.3 修复2：进入 reader 时从 localStorage 恢复已生成的小结卡片
+ *  - 跳转路径：reader → workshop → 返回 reader
+ *  - 此时不调 API，纯读 localStorage
+ *  - 三处调用：init() 末尾、loadBook() 末尾、onChapterChange() 末尾
+ */
+function restoreSummaryFromStorage() {
+  if (!currentBookId) return;
+  // 章节号：优先用 currentChapterForSummary，回退到 0
+  const ch = (typeof currentChapterForSummary === 'number')
+    ? currentChapterForSummary
+    : (window.__readerState?.currentChapter ?? 0);
+  const summary = window.__readerReadSummary(currentBookId, ch);
+  const card = document.getElementById('summary-card');
+  const empty = document.getElementById('summary-empty-state');
+  if (summary && summary.trim()) {
+    // 有小结：渲染到卡片 + 隐藏空状态
+    if (card) {
+      const content = document.getElementById('summary-content');
+      const status = document.getElementById('summary-status');
+      if (content) content.textContent = summary;
+      if (status) status.textContent = '已恢复 · 本地缓存';
+      card.classList.remove('hidden');
+    }
+    if (empty) empty.classList.add('hidden');
+    // 重新启用「重新生成」+「复制」按钮（确保可用）
+    const regenBtn = document.getElementById('regenerate-summary');
+    const copyBtn = document.getElementById('copy-summary');
+    if (regenBtn) regenBtn.disabled = false;
+    if (copyBtn) copyBtn.disabled = false;
+    console.log(`[reader.js] 从 localStorage 恢复小结 (bookId=${currentBookId}, chapter=${ch})`);
+  } else {
+    // 无小结：显示空状态 + 隐藏卡片
+    if (card) card.classList.add('hidden');
+    if (empty) empty.classList.remove('hidden');
   }
 }
 
@@ -213,6 +252,16 @@ function hideSummaryCard() {
   if (card) card.classList.add('hidden');
   if (loading) loading.classList.add('hidden');
 }
+
+/** 章节变化时调用（reader.html 内嵌脚本触发） */
+function onChapterChange(newChapter) {
+  currentChapterForSummary = newChapter;
+  hideSummaryCard();  // 切章节 → 隐藏上一章小结
+  // D14.3 修复2：尝试从 localStorage 恢复新章节的小结
+  restoreSummaryFromStorage();
+  updateSummaryButtonState();
+}
+window.onChapterChange = onChapterChange;
 
 /** 点击"生成小结" */
 async function handleGenerateSummary() {
@@ -275,14 +324,6 @@ function initSummaryButton() {
     });
   }
 }
-
-/** 章节变化时调用（reader.html 内嵌脚本触发） */
-function onChapterChange(newChapter) {
-  currentChapterForSummary = newChapter;
-  hideSummaryCard();  // 切章节 → 隐藏上一章小结
-  updateSummaryButtonState();
-}
-window.onChapterChange = onChapterChange;
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', async () => {
@@ -364,6 +405,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // D14.2 改动 4：绑定"基于对话创作"按钮 + 复制/收起
   initComposeButtons();
+
+  // D14.3 修复2：初始化时从 localStorage 恢复已生成的小结（从 workshop 跳回 reader 的场景）
+  restoreSummaryFromStorage();
 
   console.log('[reader.js] 初始化完成');
 });
@@ -823,6 +867,8 @@ async function initBookSelection() {
       summary: selected.dataset.summary || '',
     };
     console.log('[reader.js] 选了书:', currentBookContext);
+    // D14.3 修复2：切书后尝试恢复该书、当前章节的小结
+    restoreSummaryFromStorage();
   });
 
   // 初始化 context（取当前已选书）
@@ -853,6 +899,8 @@ async function initBookSelection() {
     chatHistory = loadChatHistory(currentBookId);
     console.log(`[reader.js] 跟随内嵌脚本 ?id=... 同步到 ${currentBookId}，载入 ${chatHistory.length} 条历史`);
   }
+  // 说明：D14.3 修复2 的 restoreSummaryFromStorage() 由 init() 末尾统一调用。
+  // 这里不再单独调，避免与 init() 末尾重复。
 }
 
 // P2 · 2026-06-10 主公 dogfooding 修复：切章节时清空 chatHistory（仅当前 agent）
