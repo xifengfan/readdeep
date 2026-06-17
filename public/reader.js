@@ -510,18 +510,57 @@ async function sendMessage() {
 
 // ========== 渲染 ==========
 // v3.1 P2-I：只渲染"当前 agent"的对话（其他 agent 切回来看得到）
+// D14.2 改动 2：空状态不再用"默认欢迎气泡"误导用户（实际是 N 轮没聊），
+// 改为"这是我第一次和 X 聊天 · 前面你和 Y 聊了 N 轮"上下文提示。
 function renderChat() {
   const stream = document.getElementById('chat-stream');
   if (!stream) return;
   stream.innerHTML = '';
   const myMsgs = chatHistoryForAgent(currentAgent);
   if (myMsgs.length === 0) {
-    // 首次进入该 agent：给个欢迎气泡
+    // D14.2：空状态分支 —— 上下文提示 + 跳转到其他 agent 对话的按钮
     const welcome = AGENT_NAME_MAP[currentAgent] || 'AI';
-    const div = document.createElement('div');
-    div.className = 'chat-bubble agent';
-    div.innerHTML = `你好！我是 <b>${welcome}</b>，选好书和章节后，把你的疑问或想讨论的内容发给我。`;
-    stream.appendChild(div);
+    // 统计其他 agent 的对话数
+    const otherChats = (chatHistory || []).filter(m => m && m.role === 'assistant' && m.agent && m.agent !== currentAgent);
+    const agentStats = otherChats.reduce((acc, m) => {
+      acc[m.agent] = (acc[m.agent] || 0) + 1;
+      return acc;
+    }, {});
+    const sorted = Object.entries(agentStats)
+      .filter(([_, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    const ctx = document.createElement('div');
+    ctx.className = 'chat-bubble agent chat-context-hint';
+    if (sorted.length === 0) {
+      // 真·冷启动
+      ctx.innerHTML = `你好！我是 <b>${welcome}</b>，选好书和章节后，把你的疑问或想讨论的内容发给我。`;
+      stream.appendChild(ctx);
+    } else {
+      // D14.2：上下文提示（让用户知道"前面和谁聊过"）
+      const statsText = sorted
+        .slice(0, 4)
+        .map(([k, n]) => `<b>${AGENT_NAME_MAP[k] || k}</b> 聊了 ${n} 轮`)
+        .join(' + ');
+      ctx.innerHTML = `这是我第一次和 <b>${welcome}</b> 聊天。<br/>前面你和 ${statsText}。要继续和${welcome}聊点什么吗？`;
+      stream.appendChild(ctx);
+
+      // D14.2：跳转到已聊过的 agent 的按钮（保留当前 agent 写入栈，仅"预览"）
+      const jumpWrap = document.createElement('div');
+      jumpWrap.className = 'chat-jump-buttons';
+      jumpWrap.style.cssText = 'margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;';
+      sorted.slice(0, 4).forEach(([k]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-xs px-2 py-1 rounded border border-ink-300 text-ink-700 hover:bg-ink-100';
+        btn.textContent = `看 ${AGENT_NAME_MAP[k] || k} 的对话`;
+        btn.addEventListener('click', () => {
+          switchAgent(k);
+        });
+        jumpWrap.appendChild(btn);
+      });
+      stream.appendChild(jumpWrap);
+    }
     return;
   }
   myMsgs.forEach(msg => {
