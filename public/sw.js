@@ -3,7 +3,7 @@
  * 读透 ReadDeep · AI 陪读 PWA
  *
  * 作者：吕玲绮（Coder Agent）
- * 缓存版本：p2-cache-v7-20260617-2238  ← bump: D14.5 修复 B 让浏览器拉新 reader.js（含 waitForReaderState）
+ * 缓存版本：p2-cache-v8-20260617-2310  ← bump: D14.6 删 query 分支后让浏览器拉新 sw.js
  * 部署：Cloudflare Pages（静态）
  *
  * 缓存策略总览：
@@ -16,7 +16,7 @@
  *   - /api/*              → 仅网络，永不缓存（永远要新数据）
  */
 
-const CACHE_VERSION = 'p2-cache-v7-20260617-2238';
+const CACHE_VERSION = 'p2-cache-v8-20260617-2310';
 
 // 多个命名缓存，按资源类型隔离
 // 原因：不同策略的资源放在同一缓存里，清理/调试都麻烦
@@ -269,20 +269,10 @@ async function navigateFallback(request) {
   const cache = await caches.open(CACHES.CORE);
   const url = new URL(request.url);
 
-  // D14.5 修复C：SPA 带 query string 的导航不走缓存（HTML 不应缓存，是 v6 设计原则）
-  //  - 背景：context 依赖 URL 参数的页面（reader/workshop）会被旧 HTML 卡住
-  //  - 策略：检测到 query string → fetch network，不读不写缓存
-  //  - 保留：无 query 路径仍然走 cache-first（支持离线冷启动）
-  if (url.search && url.search.length > 1) {
-    try {
-      return await fetch(request, { redirect: 'follow', mode: 'navigate', cache: 'no-store' });
-    } catch (err) {
-      console.warn(`[SW] SPA navigate 失败: ${request.url}, err: ${err.message}`);
-      const fallback = await cache.match('/library.html') || await cache.match('./library.html');
-      if (fallback) return fallback;
-      return new Response('离线模式', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-    }
-  }
+  // D14.6 撤销 D14.5 修复 C：恢复 v6 的"裸路径缓存 + 联网验证"逻辑
+  //  - 背景：D14.5 修复 C 引入「带 query 直走 network」导致 reader.html?id=... 取不到 summary（页面被旧缓存卡住）
+  //  - 正确做法：始终用「裸路径」作 cache key，fetch 用原 URL 带 query
+  //  - 这样 context 依赖 URL 参数的页面（reader/workshop）既能命中缓存，又拿得到最新 HTML
 
   // 第 1 步：尝试从缓存拿该 URL（仅裸路径命中，忽略 query string）
   // 防止 ?id=xxx 命中了无 id 的 book.html 缓存
