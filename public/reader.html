@@ -463,6 +463,11 @@
         if (currentChapter < totalCh) chapterSelectEl.value = currentChapter;
         updateProgress();
         loadChapterContent();
+        // D14.5 修复A：loadBook 末尾触发 onChapterChange → 让 reader.js 渲染小结
+        //  之前缺这行导致从 workshop 返回 reader 时，小结卡片不显示（需切章节才显示）
+        if (window.__readerState && typeof window.onChapterChange === 'function') {
+          window.onChapterChange(currentChapter);
+        }
       }
 
       // === 方案 5 · 最小版：右侧折叠面板加载章节原文 ===
