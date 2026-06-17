@@ -3,7 +3,7 @@
  * 读透 ReadDeep · AI 陪读 PWA
  *
  * 作者：吕玲绮（Coder Agent）
- * 缓存版本：p2-cache-v6-20260617-1654  ← bump: 让浏览器拉新 reader.js（含 D14.1/14.2/14.3 改动）
+ * 缓存版本：p2-cache-v7-20260617-2238  ← bump: D14.5 修复 B 让浏览器拉新 reader.js（含 waitForReaderState）
  * 部署：Cloudflare Pages（静态）
  *
  * 缓存策略总览：
@@ -16,7 +16,7 @@
  *   - /api/*              → 仅网络，永不缓存（永远要新数据）
  */
 
-const CACHE_VERSION = 'p2-cache-v6-20260617-1654';
+const CACHE_VERSION = 'p2-cache-v7-20260617-2238';
 
 // 多个命名缓存，按资源类型隔离
 // 原因：不同策略的资源放在同一缓存里，清理/调试都麻烦
