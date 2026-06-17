@@ -79,7 +79,7 @@
         <li><a href="reader.html"   class="hover:text-accent-500">陪读室</a></li>
         <li><a href="workshop.html" class="text-accent-500 font-medium">笔记工坊</a></li>
       </ul>
-      <a href="reader.html" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md border border-ink-300 hover:border-ink-900">返回陪读室</a>
+      <a href="reader.html" class="back-to-reader hidden md:inline-block px-3 py-1.5 text-sm rounded-md border border-ink-300 hover:border-ink-900">返回陪读室</a>
     </nav>
   </header>
 
@@ -287,6 +287,9 @@
       if (hasUrlCtx) {
         contextBookId = urlBookId;
         contextChapter = urlChapterNum;
+        // D14.5 修复E：URL 有上下文时立刻更新顶部「返回陪读室」链接
+        //  - 防止用户看到静态 href 就点走（_bindBookChapterSelectors / renderContextInfo 才会覆盖）
+        updateBackToReaderLink();
         // D8-1 fix-1: URL 优先合成 latestNote
         // 之前 URL 只更新下拉框/原文预览，generate() 仍用 localStorage 第一个 note
         // 现在用 URL 的 bookId+chapter 合成虚拟 latestNote，AI 看到的就是当前章
@@ -312,6 +315,18 @@
       });
 
       // 1.5. 渲染上下文信息行（含章节下拉）
+      function updateBackToReaderLink() {
+        const backLink = document.querySelector('a.back-to-reader');
+        if (!backLink) return;
+        if (!contextBookId) return;  // 未选书：保持原 href
+        const url = new URL('reader.html', window.location.origin);
+        url.searchParams.set('bookId', contextBookId);
+        if (contextChapter != null) {
+          url.searchParams.set('chapter', String(contextChapter));
+        }
+        backLink.href = url.pathname + url.search;
+      }
+
       function renderContextInfo() {
         if (!contextBookId) {
           // D8-2 v4.1 fix-29: 首项"请选择书籍"（空 value）· 不偷偷关联
@@ -366,6 +381,10 @@
         loadChapterPreview(book, contextChapter);
         // D14.3 修复4：渲染章节小结区
         renderWorkshopSummary(contextBookId, contextChapter);
+        // D14.5 修复E：更新顶部「返回陪读室」链接的 href，让 reader.html 拿上 bookId/chapter
+        //  - 背景：之前是静态 href="reader.html"，从 workshop 回 reader 加载不到上下文，小结恢复失败
+        //  - 策略：动态拼 bookId/chapter 到 href（与内部 goReader 链接一致）
+        updateBackToReaderLink();
       }
 
       /**
