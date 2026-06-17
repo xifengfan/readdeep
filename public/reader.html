@@ -553,15 +553,17 @@
       }
 
       // 6. Agent Tab 切换（aria-selected 同步在 reader.js switchAgent 中处理）
-      document.querySelectorAll('.agent-tab').forEach(btn => {
+      // D14.6 修复：HTML 实际类名是 .agent-card（旧代码误写 .agent-tab 监听不上）
+      document.querySelectorAll('.agent-card').forEach(btn => {
         btn.addEventListener('click', () => {
-          document.querySelectorAll('.agent-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.agent-card').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentAgent = btn.dataset.agent;
           currentAgentNameEl.textContent = App.AGENT_NAMES[currentAgent] || currentAgent;
           App.track('agent_chat', { action: 'switch', agent: currentAgent });
         });
       });
+      console.log('[reader.html] 已绑定 4 角色按钮监听器 (.agent-card) · 数量 =', document.querySelectorAll('.agent-card').length);
 
       // 7. 发送消息：已由 reader.js 接管
       // 8. 去笔记工坊
