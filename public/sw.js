@@ -269,6 +269,21 @@ async function navigateFallback(request) {
   const cache = await caches.open(CACHES.CORE);
   const url = new URL(request.url);
 
+  // D14.5 修复C：SPA 带 query string 的导航不走缓存（HTML 不应缓存，是 v6 设计原则）
+  //  - 背景：context 依赖 URL 参数的页面（reader/workshop）会被旧 HTML 卡住
+  //  - 策略：检测到 query string → fetch network，不读不写缓存
+  //  - 保留：无 query 路径仍然走 cache-first（支持离线冷启动）
+  if (url.search && url.search.length > 1) {
+    try {
+      return await fetch(request, { redirect: 'follow', mode: 'navigate', cache: 'no-store' });
+    } catch (err) {
+      console.warn(`[SW] SPA navigate 失败: ${request.url}, err: ${err.message}`);
+      const fallback = await cache.match('/library.html') || await cache.match('./library.html');
+      if (fallback) return fallback;
+      return new Response('离线模式', { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+  }
+
   // 第 1 步：尝试从缓存拿该 URL（仅裸路径命中，忽略 query string）
   // 防止 ?id=xxx 命中了无 id 的 book.html 缓存
   const bareRequest = new Request(url.origin + url.pathname, { method: 'GET' });
