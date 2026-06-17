@@ -400,7 +400,8 @@
         if (currentBook) {
           const _bookId = encodeURIComponent(currentBook.id);
           const _chapter = currentChapter;
-          location.href = `workshop.html?id=${_bookId}&chapter=${_chapter}`;
+          // D14.5 修复D：统一跳转参数名为 ?bookId=&chapter=（与主按钮 goWorkshopBtn 一致）
+          location.href = `workshop.html?bookId=${_bookId}&chapter=${_chapter}`;
         } else {
           location.href = 'workshop.html';
         }
