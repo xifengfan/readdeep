@@ -102,6 +102,23 @@
       </div>
     </div>
 
+    <!-- ========== D14.3 修复4：章节小结消费区 ========== -->
+    <section class="summary-section mb-8 p-4 md:p-5 rounded-lg border border-paper-200 bg-paper-50">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold">📚 章节小结</h3>
+        <span id="workshop-summary-meta" class="text-xs text-ink-500">未选书选章</span>
+      </div>
+      <div id="workshop-summary-display" class="text-sm text-ink-500 italic">选书选章后查看本章小结（由 reader 生成）</div>
+      <div class="summary-actions mt-3 flex items-center gap-2">
+        <button id="view-summary-btn" type="button" class="hidden text-xs px-3 py-1.5 rounded border border-ink-300 text-ink-700 hover:bg-ink-100 hover:border-ink-900">
+          👁 查看小结
+        </button>
+        <button id="goto-generate-btn" type="button" class="hidden text-xs px-3 py-1.5 rounded border border-accent-500 text-accent-500 hover:bg-accent-500 hover:text-paper-50">
+          📝 去 reader 生成
+        </button>
+      </div>
+    </section>
+
     <!-- ========== 4 种模板（商业级 v3 · 郭嘉方案 A 复用）========== -->
     <section class="template-section">
       <h2 class="section-title">选一种模板生成</h2>
@@ -315,6 +332,8 @@
           hideChapterPreview();
           // 清空原文区内容（避免上次残留）
           if (chapterPreviewContent) chapterPreviewContent.textContent = '';
+          // D14.3 修复4：未选态 - 小结区置为初始提示
+          renderWorkshopSummary(null, null);
           return;
         }
         const book = contextAllBooks.find(b => b.id === contextBookId);
@@ -345,6 +364,8 @@
         _bindBookChapterSelectors();
         // 加载章节原文预览
         loadChapterPreview(book, contextChapter);
+        // D14.3 修复4：渲染章节小结区
+        renderWorkshopSummary(contextBookId, contextChapter);
       }
 
       /**
@@ -591,6 +612,84 @@
           await generate(tpl);
         });
       });
+
+      // ========== D14.3 修复4：章节小结消费区（workshop 顶部） ==========
+      // 逻辑：读 localStorage 的 readdeep.summary.{bookId}.{chapter}
+      //   - 有小结：显示「👁 查看小结」按钮，点击弹 modal
+      //   - 无小结：显示「📝 去 reader 生成」按钮，点击跳 reader.html
+      //  覆盖路径：renderContextInfo 两个分支都调（未选 + 已选）
+      function renderWorkshopSummary(bookId, chapter) {
+        const meta = document.getElementById('workshop-summary-meta');
+        const display = document.getElementById('workshop-summary-display');
+        const viewBtn = document.getElementById('view-summary-btn');
+        const gotoBtn = document.getElementById('goto-generate-btn');
+        if (!meta || !display || !viewBtn || !gotoBtn) return;
+        if (!bookId || chapter == null) {
+          meta.textContent = '未选书选章';
+          display.textContent = '选书选章后查看本章小结（由 reader 生成）';
+          display.classList.add('italic');
+          viewBtn.classList.add('hidden');
+          gotoBtn.classList.add('hidden');
+          return;
+        }
+        const summary = readSummaryFromStorage(bookId, chapter);
+        if (summary && summary.trim()) {
+          // 有小结：80 字预览 + 查查看按钮
+          const preview = summary.length > 80 ? summary.slice(0, 80) + '…' : summary;
+          display.textContent = preview;
+          display.classList.remove('italic');
+          meta.textContent = `《${bookId}》第 ${(chapter || 0) + 1} 章 · 已生成小结（${summary.length} 字）`;
+          viewBtn.classList.remove('hidden');
+          gotoBtn.classList.add('hidden');
+        } else {
+          // 无小结：提示去 reader
+          display.textContent = '本章还没有小结。去 reader.html 与 2 角色各聊 1 轮后点击「生成小结」。';
+          display.classList.add('italic');
+          meta.textContent = `《${bookId}》第 ${(chapter || 0) + 1} 章 · 未生成小结`;
+          viewBtn.classList.add('hidden');
+          gotoBtn.classList.remove('hidden');
+        }
+      }
+      // 「👁 查看小结」 → 弹 modal 显示全文
+      const viewSummaryBtn = document.getElementById('view-summary-btn');
+      if (viewSummaryBtn) {
+        viewSummaryBtn.addEventListener('click', () => {
+          const summary = readSummaryFromStorage(contextBookId, contextChapter);
+          if (!summary) {
+            showToast?.('本章暂无小结', 'warn');
+            return;
+          }
+          // 轻量 modal（不引入新组件）
+          const modal = document.createElement('div');
+          modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+          modal.innerHTML = `
+            <div style="background:var(--paper-50,#fefdf8);max-width:640px;width:100%;max-height:80vh;border-radius:8px;padding:24px;overflow-y:auto;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="font-weight:600;">📚 章节小结全文</h3>
+                <button id="modal-close" type="button" style="font-size:18px;padding:4px 12px;border:1px solid var(--ink-300,#d4d0c8);border-radius:4px;background:transparent;cursor:pointer;">×</button>
+              </div>
+              <pre style="white-space:pre-wrap;font-family:var(--font-serif);font-size:14px;line-height:1.7;">${escapeHtml(summary)}</pre>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          const close = () => modal.remove();
+          modal.querySelector('#modal-close').addEventListener('click', close);
+          modal.addEventListener('click', (ev) => { if (ev.target === modal) close(); });
+          App.track && App.track('summary_view_modal', { bookId: contextBookId, chapter: contextChapter });
+        });
+      }
+      // 「📝 去 reader 生成」 → 跳 reader.html 带上书/章参数
+      const gotoGenerateBtn = document.getElementById('goto-generate-btn');
+      if (gotoGenerateBtn) {
+        gotoGenerateBtn.addEventListener('click', () => {
+          if (!contextBookId) {
+            showToast?.('请先选择书籍', 'warn');
+            return;
+          }
+          const ch = contextChapter ?? 0;
+          window.location.href = `reader.html?id=${encodeURIComponent(contextBookId)}&chapter=${ch}`;
+        });
+      }
 
       /**
        * D14.1：直接读本地“章节小结”做 input（原 buildInput 拼接“思考题答案 + 对话”已废除）
