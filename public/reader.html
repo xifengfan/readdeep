@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
@@ -327,10 +327,33 @@
           touch-action: manipulation;
         }
       }
-    </style>
+            /* D15.7.2 悬浮按钮 FAB */
+        #fab-to-agents {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          min-width: 44px;
+          min-height: 44px;
+          z-index: 50;
+          transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        #fab-to-agents:active {
+          transform: scale(0.95);
+        }
+        #fab-to-agents.hidden {
+          opacity: 0;
+          pointer-events: none;
+          transform: translateY(8px);
+        }
+        /* iOS 底部安全区适配 */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+          #fab-to-agents {
+            bottom: calc(1.5rem + env(safe-area-inset-bottom));
+          }
+        }
+      </style>
 
     <!-- ========== 4 Agent Tab（D7-2 v2：试试问移出 · 商业级网格）========== -->
-    <section class="mb-6">
+    <section id="agent-cards" class="mb-6">
       <div class="flex items-center gap-3 mb-4">
         <h2 class="font-semibold"
             style="font-size: var(--text-xl); line-height: var(--leading-snug)">4 Agent 陪读</h2>
@@ -809,5 +832,6 @@
     }
   })();
 </script>
+    <button id="fab-to-agents" class="fab fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-accent-500 text-white shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center text-lg" title="跳到角色卡片" aria-label="跳到角色卡片" style="touch-action: manipulation; -webkit-tap-highlight-color: transparent; min-width:44px; min-height:44px;">💬</button>
 </body>
 </html>

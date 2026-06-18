@@ -1,4 +1,4 @@
-﻿// ================================================
+// ================================================
 // reader.js
 // P2 读透 · 陪读室前端逻辑
 // 用途：4 Agent Tab 切换 + 调 /api/chat + 历史滚动
@@ -951,4 +951,36 @@ function initTryAskButtons() {
       }
     });
   });
+
+  // D15.7.2 角色卡片直达悬浮按钮
+  (function initFab() {
+    const fab = document.getElementById(`fab-to-agents`);
+    const agentsSection = document.getElementById(`agent-cards`);
+    if (!fab || !agentsSection) return;
+
+    if (`IntersectionObserver` in window) {
+      const observer = new IntersectionObserver(([entry]) => {
+        fab.classList.toggle(`hidden`, entry.isIntersecting);
+      }, { rootMargin: `-200px 0px` });
+      observer.observe(agentsSection);
+    } else {
+      const toggleFab = () => {
+        const rect = agentsSection.getBoundingClientRect();
+        fab.classList.toggle(`hidden`, rect.top < window.innerHeight);
+      };
+      window.addEventListener(`scroll`, toggleFab, { passive: true });
+      toggleFab();
+    }
+
+    fab.addEventListener(`click`, () => {
+      agentsSection.scrollIntoView({ behavior: `smooth`, block: `start` });
+      const firstCard = agentsSection.querySelector(`.agent-card`);
+      if (firstCard) firstCard.focus({ preventScroll: true });
+    });
+
+    requestAnimationFrame(() => {
+      const rect = agentsSection.getBoundingClientRect();
+      fab.classList.toggle(`hidden`, rect.top < window.innerHeight);
+    });
+  })();
 }
