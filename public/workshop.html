@@ -330,6 +330,11 @@
         });
       }
 
+      // D15.2 修复：DOMContentLoaded 顶层初始化后立即渲染一次历史区
+      // 解决主公反馈"切换 workshop 页面历史笔记显示暂无，需生成一次后才显示"
+      // renderHistory() 内部从 localStorage 重读（fix-18），不依赖 generatedNotes 是否有数据
+      renderHistory();
+
       // 1.5. 渲染上下文信息行（含章节下拉）
       function updateBackToReaderLink() {
         const backLink = document.querySelector('a.back-to-reader');
