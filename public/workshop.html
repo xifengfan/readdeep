@@ -56,8 +56,8 @@
     /* ================================================
      * D15.7.1 · mobile drawer / 汉堡菜单（workshop 内联）
      * ================================================ */
-    .menu-toggle {
-      display: inline-flex;
+    button.menu-toggle {
+      display: inline-flex !important;
       align-items: center;
       justify-content: center;
       width: 44px;
@@ -83,7 +83,7 @@
       border-color: var(--ink-900, #1a1a1a);
     }
     @media (min-width: 768px) {
-      .menu-toggle { display: none !important; }
+      button.menu-toggle { display: none !important; }
     }
     .mobile-drawer-backdrop {
       position: fixed;
@@ -1823,6 +1823,7 @@ ${noteReply}
   </script>
 <script>
   // D15.7.1 · mobile drawer 初始化
+  try {
   (function initMobileDrawer() {
     const toggle = document.getElementById('menu-toggle');
     const close = document.getElementById('mobile-drawer-close');
@@ -1847,6 +1848,7 @@ ${noteReply}
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDrawer(); });
     drawer.querySelectorAll('a').forEach(function(link) { link.addEventListener('click', closeDrawer); });
   })();
+  } catch (e) { console.warn('[workshop] initMobileDrawer error:', e); }
 </script>
 </body>
 </html>

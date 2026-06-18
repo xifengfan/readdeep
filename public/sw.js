@@ -152,7 +152,7 @@ self.addEventListener('fetch', (event) => {
   // 4. /data/books.json → 网络优先，失败用缓存
   //    增书时要新，但离线时也要能看老书单
   if (url.pathname === '/data/books.json') {
-    event.respondWith(networkFirst(request, CACHES.RUNTIME));
+    event.respondWith(cacheFirst(request, CACHES.RUNTIME));
     return;
   }
 

@@ -492,8 +492,8 @@
       background: var(--accent-600);
     }
     /* D15.7.1 · 汉堡按钮（mobile 导航入口） */
-    .menu-toggle {
-      display: inline-flex;
+    button.menu-toggle {
+      display: inline-flex !important;
       align-items: center;
       justify-content: center;
       width: 44px;
@@ -518,7 +518,7 @@
       border-color: var(--ink-900);
     }
     @media (min-width: 768px) {
-      .menu-toggle {
+      button.menu-toggle {
         display: none;
       }
     }
