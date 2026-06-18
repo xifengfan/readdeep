@@ -5,7 +5,7 @@
 // 模型：deepseek-v4-flash
 // ================================================
 
-import { callDeepSeek, streamDeepSeek, DEFAULT_MODEL, safeParseJson } from './lib/deepseek.js';
+import { callDeepSeek, DEFAULT_MODEL, safeParseJson } from './lib/deepseek.js';
 
 // 状态机
 const STATUS = {

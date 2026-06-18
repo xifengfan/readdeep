@@ -1,6 +1,6 @@
 name = "readdeep"
 main = "src/index.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-05-01"
 
 # Workers Assets (static resources)
 # v4-2050: html_handling = "none" 关闭 assets 的自动 .html 307 redirect
