@@ -39,9 +39,26 @@
         <li><a href="reader.html"   class="text-accent-500 font-medium">陪读室</a></li>
         <li><a href="workshop.html" class="hover:text-accent-500">笔记工坊</a></li>
       </ul>
-      <a href="javascript:void(0)" id="top-go-workshop" class="hidden md:inline-block px-3 py-1.5 text-sm rounded-md bg-accent-500 text-paper-50 hover:bg-accent-600">生成笔记</a>
+      <a href="javascript:void(0)" id="top-go-workshop" class="hidden md:inline-flex items-center px-4 py-2 text-sm rounded-md bg-accent-500 text-paper-50 hover:bg-accent-600" style="min-height:44px;">生成笔记</a>
+      <!-- D15.7.1 · 汉堡按钮（mobile 入口） -->
+      <button type="button" class="md:hidden menu-toggle" id="menu-toggle" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobile-drawer">☰</button>
     </nav>
   </header>
+
+  <!-- D15.7.1 · mobile drawer（mobile 导航抽屉） -->
+  <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop"></div>
+  <aside class="mobile-drawer" id="mobile-drawer" aria-label="导航菜单">
+    <div class="mobile-drawer-header">
+      <span class="mobile-drawer-title">导航</span>
+      <button type="button" class="mobile-drawer-close" id="mobile-drawer-close" aria-label="关闭菜单">✕</button>
+    </div>
+    <nav class="mobile-drawer-nav">
+      <a href="library.html">📚 书库</a>
+      <a href="reader.html" class="active">💬 陪读室</a>
+      <a href="workshop.html">🛠 笔记工坊</a>
+    </nav>
+    <a href="javascript:void(0)" id="mobile-drawer-cta" class="mobile-drawer-cta">生成笔记</a>
+  </aside>
 
   <main class="max-w-6xl mx-auto px-4 py-8">
 
@@ -149,6 +166,166 @@
       }
       .reader-missing-back:hover {
         background: var(--ink-700, #3d3d3d);
+      }
+
+      /* ================================================
+       * D15.7.1 · mobile drawer / 汉堡菜单（reader 内联）
+       * ================================================ */
+      .menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        background: transparent;
+        border: 1px solid var(--ink-300, #d4d4d4);
+        border-radius: var(--radius-md, 0.5rem);
+        cursor: pointer;
+        font-size: 20px;
+        color: var(--ink-900, #1a1a1a);
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      .menu-toggle:hover {
+        border-color: var(--ink-900, #1a1a1a);
+        background: var(--paper-100, #f5e6d3);
+      }
+      .menu-toggle[aria-expanded="true"] {
+        background: var(--ink-900, #1a1a1a);
+        color: var(--paper-100, #fafaf7);
+        border-color: var(--ink-900, #1a1a1a);
+      }
+      @media (min-width: 768px) {
+        .menu-toggle { display: none !important; }
+      }
+      .mobile-drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(26, 26, 26, 0.5);
+        z-index: 60;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--duration-base, 250ms) var(--ease-out, ease);
+      }
+      .mobile-drawer-backdrop.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .mobile-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(85vw, 320px);
+        background: var(--paper-50, #fafaf7);
+        z-index: 70;
+        padding: var(--space-6, 1.5rem) var(--space-4, 1rem) var(--space-4, 1rem);
+        box-shadow: var(--shadow-lg, 0 12px 32px rgba(26,26,26,0.15));
+        transform: translateX(100%);
+        transition: transform var(--duration-base, 250ms) var(--ease-out, ease);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: manipulation;
+      }
+      .mobile-drawer.is-open {
+        transform: translateX(0);
+      }
+      .mobile-drawer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: var(--space-4, 1rem);
+        border-bottom: 1px solid var(--paper-200, #e8d5b7);
+        margin-bottom: var(--space-2, 0.5rem);
+      }
+      .mobile-drawer-title {
+        font-size: var(--text-lg, 1.125rem);
+        font-weight: var(--weight-semibold, 600);
+        color: var(--ink-900, #1a1a1a);
+      }
+      .mobile-drawer-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        background: transparent;
+        border: 1px solid var(--ink-300, #d4d4d4);
+        border-radius: var(--radius-md, 0.5rem);
+        cursor: pointer;
+        font-size: 18px;
+        color: var(--ink-900, #1a1a1a);
+        font-family: inherit;
+      }
+      .mobile-drawer-close:hover {
+        border-color: var(--ink-900, #1a1a1a);
+        background: var(--paper-100, #f5e6d3);
+      }
+      .mobile-drawer-nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1, 0.25rem);
+        padding: var(--space-4, 1rem) 0;
+      }
+      .mobile-drawer-nav a {
+        display: flex;
+        align-items: center;
+        min-height: 48px;
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        font-size: var(--text-base, 1rem);
+        color: var(--ink-700, #3d3d3d);
+        text-decoration: none;
+        border-radius: var(--radius-md, 0.5rem);
+        transition: background var(--duration-fast, 150ms) var(--ease-out, ease);
+      }
+      .mobile-drawer-nav a:hover,
+      .mobile-drawer-nav a.active {
+        background: var(--paper-100, #f5e6d3);
+        color: var(--accent-500, #c1272d);
+      }
+      .mobile-drawer-cta {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        margin-top: var(--space-2, 0.5rem);
+        background: var(--accent-500, #c1272d);
+        color: var(--paper-100, #fafaf7);
+        text-decoration: none;
+        border-radius: var(--radius-md, 0.5rem);
+        font-size: var(--text-base, 1rem);
+        font-weight: var(--weight-semibold, 600);
+      }
+      .mobile-drawer-cta:hover {
+        background: var(--accent-600, #a11f25);
+      }
+      @media (min-width: 768px) {
+        .mobile-drawer,
+        .mobile-drawer-backdrop {
+          display: none !important;
+        }
+      }
+
+      /* D15.7.1 · 触控区升级：try-ask-btn 移动端 ≥44px */
+      @media (max-width: 767px) {
+        .try-ask-btn {
+          min-height: 44px;
+          padding: var(--space-3, 0.75rem) var(--space-3, 0.75rem);
+          font-size: var(--text-sm, 0.875rem);
+          white-space: normal;
+          text-align: left;
+          line-height: 1.3;
+        }
+        /* 主操作按钮（如 #top-go-workshop）移动端 ≥44px 由 Tailwind class 保证；
+           这里再补一个针对 .btn / button 默认的兜底 */
+        button {
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+        }
       }
     </style>
 
@@ -594,5 +771,43 @@
       });
     }
   </script>
+<script>
+  // D15.7.1 · mobile drawer 初始化
+  (function initMobileDrawer() {
+    const toggle = document.getElementById('menu-toggle');
+    const close = document.getElementById('mobile-drawer-close');
+    const drawer = document.getElementById('mobile-drawer');
+    const backdrop = document.getElementById('mobile-drawer-backdrop');
+    const cta = document.getElementById('mobile-drawer-cta');
+    if (!toggle || !drawer || !backdrop) return;
+    function openDrawer() {
+      drawer.classList.add('is-open');
+      backdrop.classList.add('is-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDrawer() {
+      drawer.classList.remove('is-open');
+      backdrop.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    }
+    toggle.addEventListener('click', openDrawer);
+    if (close) close.addEventListener('click', closeDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDrawer(); });
+    drawer.querySelectorAll('a').forEach(function(link) { link.addEventListener('click', closeDrawer); });
+    // mobile-drawer-cta 复用 #top-go-workshop 行为
+    if (cta) {
+      cta.addEventListener('click', function(e) {
+        e.preventDefault();
+        const origin = document.getElementById('top-go-workshop');
+        if (origin) origin.click();
+        else window.location.href = 'workshop.html';
+        closeDrawer();
+      });
+    }
+  })();
+</script>
 </body>
 </html>

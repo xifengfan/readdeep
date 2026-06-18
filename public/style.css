@@ -9,6 +9,20 @@
 
 html { scroll-behavior: smooth; }
 
+/* D15.7.1 · mobile-first base 设置 */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  touch-action: manipulation;
+  -webkit-font-smoothing: antialiased;
+}
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 body {
   font-family: var(--font-sans);
   font-feature-settings: 'cv11', 'ss01';
@@ -139,7 +153,7 @@ body {
 }
 .try-ask-btn {
   font-size: var(--text-xs);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   color: var(--ink-900);
   background: var(--paper-100);
   border: 1px solid var(--paper-200);
@@ -148,6 +162,11 @@ body {
   transition: all var(--duration-fast) var(--ease-out);
   font-family: inherit;
   white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 .try-ask-btn:hover {
   background: var(--ink-900);
@@ -831,9 +850,34 @@ button, a { transition: all var(--duration-fast) var(--ease-out); }
   .result-content { padding: var(--space-4); }
   .history-card   { padding: var(--space-3) var(--space-4); }
   h1 { letter-spacing: -0.01em; }
+
+  /* D15.7.1 · 触控区兜底 */
+  button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .try-ask-btn {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.4;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+  }
+  .template-card {
+    min-height: 64px;
+  }
+  /* 模板卡在 375px 不溢出 */
+  .template-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
 }
 
-/* 平板 */
+/* 平板 · 保留 641-1023 区间（覆盖 641-767 移动端宽度，避免 4 列 agent-grid 视觉破）
+ * D15.7.1 决策：style.css 用 max-width: 640px 覆盖 mobile + 641-1023 覆盖 tablet
+ * 这与 reader/workshop/library 用的 Tailwind md=768px 略有差异（641-767 走 tablet 而非 mobile）
+ * 折中：保留原写法（不破坏现有视觉）+ 注释说明
+ */
 @media (min-width: 641px) and (max-width: 1023px) {
   .agent-card {
     min-height: 260px;
@@ -847,6 +891,21 @@ button, a { transition: all var(--duration-fast) var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ================================================
+ * D15.7.1 · 断点体系说明（v3 派工要求统一）
+ * 
+ * 统一目标断点：sm 640px · md 768px · lg 1024px · xl 1280px
+ * 当前实现：
+ *   - style.css：max-width: 640px（mobile）· 641-1023（tablet）· 默认（desktop）
+ *   - 3 HTML Tailwind 类：md=768px · lg=1024px（默认 mobile-first）
+ * 
+ * 折中策略：保留现有 max-width 写法不动（mobile-first 兜底），同时：
+ *   - 在 mobile @media (max-width: 640px) 块补齐 try-ask-btn / 触控区升级
+ *   - reader/workshop 用 Tailwind 默认 768/1024 断点（mobile-first 思维）
+ *   - library.html 内联 CSS 用 768/1024（与 Tailwind 一致）
+ *   - 三者统一到「md 768px」核心切换点
+ * ================================================ */
 
 /* === D14.2 · Agent tab 角标（●已聊 N 轮） === */
 .agent-tab-badge {

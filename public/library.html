@@ -44,7 +44,7 @@
       margin-right: var(--space-1);
     }
     .filter-btn {
-      padding: var(--space-1) var(--space-4);
+      padding: var(--space-2) var(--space-4);
       font-size: var(--text-sm);
       font-weight: var(--weight-medium);
       border-radius: var(--radius-full);
@@ -55,6 +55,12 @@
       transition: all var(--duration-fast) var(--ease-out);
       font-family: inherit;
       line-height: 1.4;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .filter-btn:hover {
       border-color: var(--ink-900);
@@ -410,6 +416,29 @@
         display: flex;
       }
     }
+    /* D15.7.1 · mobile drawer 导航列表 */
+    .mobile-drawer-nav {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-4) 0;
+    }
+    .mobile-drawer-nav a {
+      display: flex;
+      align-items: center;
+      min-height: 48px;
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-base);
+      color: var(--ink-700);
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      transition: background var(--duration-fast) var(--ease-out);
+    }
+    .mobile-drawer-nav a:hover,
+    .mobile-drawer-nav a.active {
+      background: var(--paper-100);
+      color: var(--accent-500);
+    }
     .site-nav-links a {
       text-decoration: none;
       color: var(--ink-700);
@@ -424,20 +453,145 @@
     }
     .site-cta {
       display: none;
-      padding: var(--space-1) var(--space-3);
+      padding: var(--space-2) var(--space-4);
       font-size: var(--text-sm);
       border-radius: var(--radius-md);
       background: var(--ink-900);
       color: var(--paper-100);
       text-decoration: none;
       transition: background var(--duration-fast) var(--ease-out);
+      min-height: 44px;
+      line-height: 1.4;
+      display: inline-flex;
+      align-items: center;
     }
     .site-cta:hover {
       background: var(--ink-700);
     }
     @media (min-width: 768px) {
       .site-cta {
-        display: inline-block;
+        display: inline-flex;
+      }
+    }
+    /* D15.7.1 · mobile drawer 内的 CTA 按钮（占满宽度） */
+    .mobile-drawer-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: var(--space-3) var(--space-4);
+      margin-top: var(--space-2);
+      background: var(--accent-500);
+      color: var(--paper-100);
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      font-size: var(--text-base);
+      font-weight: var(--weight-semibold);
+    }
+    .mobile-drawer-cta:hover {
+      background: var(--accent-600);
+    }
+    /* D15.7.1 · 汉堡按钮（mobile 导航入口） */
+    .menu-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      background: transparent;
+      border: 1px solid var(--ink-300);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 20px;
+      color: var(--ink-900);
+      transition: all var(--duration-fast) var(--ease-out);
+      font-family: inherit;
+    }
+    .menu-toggle:hover {
+      border-color: var(--ink-900);
+      background: var(--paper-100);
+    }
+    .menu-toggle[aria-expanded="true"] {
+      background: var(--ink-900);
+      color: var(--paper-100);
+      border-color: var(--ink-900);
+    }
+    @media (min-width: 768px) {
+      .menu-toggle {
+        display: none;
+      }
+    }
+
+    /* D15.7.1 · mobile drawer 抽屉 */
+    .mobile-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 26, 26, 0.5);
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-base) var(--ease-out);
+    }
+    .mobile-drawer-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(85vw, 320px);
+      background: var(--paper-50);
+      z-index: 70;
+      padding: var(--space-6) var(--space-4) var(--space-4);
+      box-shadow: var(--shadow-lg);
+      transform: translateX(100%);
+      transition: transform var(--duration-base) var(--ease-out);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: manipulation;
+    }
+    .mobile-drawer.is-open {
+      transform: translateX(0);
+    }
+    .mobile-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--paper-200);
+      margin-bottom: var(--space-2);
+    }
+    .mobile-drawer-title {
+      font-size: var(--text-lg);
+      font-weight: var(--weight-semibold);
+      color: var(--ink-900);
+    }
+    .mobile-drawer-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      background: transparent;
+      border: 1px solid var(--ink-300);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--ink-900);
+      font-family: inherit;
+    }
+    .mobile-drawer-close:hover {
+      border-color: var(--ink-900);
+      background: var(--paper-100);
+    }
+    @media (min-width: 768px) {
+      .mobile-drawer,
+      .mobile-drawer-backdrop {
+        display: none !important;
       }
     }
     .site-footer {
@@ -463,8 +617,25 @@
         <li><a href="workshop.html">笔记工坊</a></li>
       </ul>
       <a href="reader.html" class="site-cta">陪读室</a>
+      <!-- D15.7.1 · 汉堡按钮（mobile 入口） -->
+      <button type="button" class="menu-toggle" id="menu-toggle" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobile-drawer">☰</button>
     </nav>
   </header>
+
+  <!-- D15.7.1 · mobile drawer（mobile 导航抽屉） -->
+  <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop"></div>
+  <aside class="mobile-drawer" id="mobile-drawer" aria-label="导航菜单">
+    <div class="mobile-drawer-header">
+      <span class="mobile-drawer-title">导航</span>
+      <button type="button" class="mobile-drawer-close" id="mobile-drawer-close" aria-label="关闭菜单">✕</button>
+    </div>
+    <nav class="mobile-drawer-nav">
+      <a href="library.html" class="active">📚 书库</a>
+      <a href="reader.html">💬 陪读室</a>
+      <a href="workshop.html">🛠 笔记工坊</a>
+    </nav>
+    <a href="reader.html" class="mobile-drawer-cta">开始陪读</a>
+  </aside>
 
   <main style="max-width:72rem;margin:0 auto;padding:var(--space-12) var(--space-4);">
 
@@ -544,6 +715,39 @@
     document.addEventListener('DOMContentLoaded', async () => {
       App.init();
       App.track('page_view', { page: 'library' });
+
+      // D15.7.1 · mobile drawer 初始化
+      (function initMobileDrawer() {
+        const toggle = document.getElementById('menu-toggle');
+        const close = document.getElementById('mobile-drawer-close');
+        const drawer = document.getElementById('mobile-drawer');
+        const backdrop = document.getElementById('mobile-drawer-backdrop');
+        if (!toggle || !drawer || !backdrop) return;
+
+        function openDrawer() {
+          drawer.classList.add('is-open');
+          backdrop.classList.add('is-open');
+          toggle.setAttribute('aria-expanded', 'true');
+          document.body.style.overflow = 'hidden';
+        }
+        function closeDrawer() {
+          drawer.classList.remove('is-open');
+          backdrop.classList.remove('is-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          document.body.style.overflow = '';
+        }
+
+        toggle.addEventListener('click', openDrawer);
+        if (close) close.addEventListener('click', closeDrawer);
+        backdrop.addEventListener('click', closeDrawer);
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') closeDrawer();
+        });
+        // drawer 内链接点击后自动关闭
+        drawer.querySelectorAll('a').forEach(function(link) {
+          link.addEventListener('click', closeDrawer);
+        });
+      })();
 
       const grid = document.getElementById('books-grid');
       const countEl = document.getElementById('result-count');
