@@ -294,25 +294,41 @@
         // 之前 URL 只更新下拉框/原文预览，generate() 仍用 localStorage 第一个 note
         // 现在用 URL 的 bookId+chapter 合成虚拟 latestNote，AI 看到的就是当前章
         // D14.1：思考题已删，不再拼 answers 进 latestNote；templateKey 保持 null
-        const _book = contextAllBooks.find(b => b.id === urlBookId);
-        latestNote = {
-          bookId: urlBookId,
-          bookTitle: _book?.title || latestNote?.bookTitle || urlBookId,
-          bookAuthor: _book?.author || '佚名',
-          chapter: urlChapterNum,
-          dialogue: latestNote?.dialogue || [],
-          createdAt: new Date().toISOString(),
-        };
+        //
+        // D15.1 修复：先 await fetch books.json 再合成 latestNote
+        // 旧逻辑：contextAllBooks 还是空数组，_book 是 undefined，
+        //         回退到 urlBookId（如 pd-004）并被持久化进 latestNote
+        // 新逻辑：等 books.json 加载完才合成，此时 _book?.title 是真书名「孟子」
+        (async () => {
+          try {
+            const resp = await fetch('/data/books.json');
+            const j = await resp.json();
+            contextAllBooks = Array.isArray(j) ? j : (j.books || []);
+          } catch (e) {
+            console.warn('[workshop] books.json 加载失败:', e);
+          }
+          const _book = contextAllBooks.find(b => b.id === urlBookId);
+          latestNote = {
+            bookId: urlBookId,
+            // 此时回退到 urlBookId 是极少数情况（书真没找到）— 比显示 pd-004 更友好
+            bookTitle: _book?.title || latestNote?.bookTitle || urlBookId,
+            bookAuthor: _book?.author || '佚名',
+            chapter: urlChapterNum,
+            dialogue: latestNote?.dialogue || [],
+            createdAt: new Date().toISOString(),
+          };
+          // 首次渲染（带 books.json 里的真书名）
+          renderContextInfo();
+        })();
+      } else {
+        // 无 URL 参数：仍走原异步流程（不阻塞 P2-K 默认渲染）
+        fetch('/data/books.json').then(r => r.json()).then(j => {
+          contextAllBooks = Array.isArray(j) ? j : (j.books || []);
+          renderContextInfo();
+        }).catch(() => {
+          renderContextInfo();
+        });
       }
-
-      // 2. 拉取 books.json（异步；不阻塞 P2-K 默认渲染）
-      fetch('/data/books.json').then(r => r.json()).then(j => {
-        contextAllBooks = Array.isArray(j) ? j : (j.books || []);
-        // 有 URL 参数时用 books.json 里的标题回填上下文
-        renderContextInfo();
-      }).catch(() => {
-        renderContextInfo();
-      });
 
       // 1.5. 渲染上下文信息行（含章节下拉）
       function updateBackToReaderLink() {

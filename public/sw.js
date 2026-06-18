@@ -3,7 +3,7 @@
  * 读透 ReadDeep · AI 陪读 PWA
  *
  * 作者：吕玲绮（Coder Agent）
- * 缓存版本：p2-cache-v8-20260617-2310  ← bump: D14.6 删 query 分支后让浏览器拉新 sw.js
+ * 缓存版本：p2-cache-v9-20260618-fixsw  ← bump: D15.1 sw.js 加 try/catch 防御，让浏览器拉新 sw.js
  * 部署：Cloudflare Pages（静态）
  *
  * 缓存策略总览：
@@ -16,7 +16,7 @@
  *   - /api/*              → 仅网络，永不缓存（永远要新数据）
  */
 
-const CACHE_VERSION = 'p2-cache-v8-20260617-2310';
+const CACHE_VERSION = 'p2-cache-v9-20260618-fixsw';
 
 // 多个命名缓存，按资源类型隔离
 // 原因：不同策略的资源放在同一缓存里，清理/调试都麻烦
@@ -250,13 +250,28 @@ async function cacheFirst(request, cacheName) {
 }
 
 /**
- * 仅网络：用于 /api/*
+ * 仅网络：用于 /api/* 和 5 个 HTML 入口
  * 失败直接抛错，不缓存、不回退
+ *
+ * D15.1 修复：包 try/catch 防御性兜底
+ *  - 旧逻辑：fetch 失败抛 unhandled rejection，DevTools 红线
+ *    `Uncaught (in promise) TypeError: Failed to fetch at networkOnly (sw.js:259:10)`
+ *  - 新逻辑：fetch 失败返回 503 Response，调用方无需 try/catch 也能正常工作
+ *  - 不改 fetch 策略（不缓存、不回退），仅补防御层
  */
 async function networkOnly(request) {
-  // 显式指定 redirect: "follow"：避免 wrangler dev 307 重定向导致 SW 失败
-  // 但保留原始 request 的 mode
-  return fetch(request, { redirect: 'follow', mode: request.mode });
+  try {
+    // 显式指定 redirect: "follow"：避免 wrangler dev 307 重定向导致 SW 失败
+    // 但保留原始 request 的 mode
+    return await fetch(request, { redirect: 'follow', mode: request.mode });
+  } catch (err) {
+    console.warn('[sw] networkOnly fetch failed:', request.url, err);
+    return new Response('Offline', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+  }
 }
 
 // ============================================================
